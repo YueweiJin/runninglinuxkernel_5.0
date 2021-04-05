@@ -2041,6 +2041,12 @@ static ssize_t generic_file_buffered_read(struct kiocb *iocb,
 	struct file *filp = iocb->ki_filp;
 	struct address_space *mapping = filp->f_mapping;
 	struct inode *inode = mapping->host;
+    /* 
+     * JYW: 首先拿到该文件的窗口实例，如果是第一次读取那么该实体
+     * 是初始状态，如果非第一次读取页面，该实体就是上一次读的状态，
+     * 本次读取会根据上次的预读状态和本次是否命中
+     * 调整窗口实例
+     */
 	struct file_ra_state *ra = &filp->f_ra;
 	loff_t *ppos = &iocb->ki_pos;
 	pgoff_t index;
@@ -2053,10 +2059,11 @@ static ssize_t generic_file_buffered_read(struct kiocb *iocb,
 	if (unlikely(*ppos >= inode->i_sb->s_maxbytes))
 		return 0;
 	iov_iter_truncate(iter, inode->i_sb->s_maxbytes);
-
+    /* JYW: 表示用户要求读取的第一个页面在文件中的页面序号，如果文件头那么该值为0 */
 	index = *ppos >> PAGE_SHIFT;
 	prev_index = ra->prev_pos >> PAGE_SHIFT;
 	prev_offset = ra->prev_pos & (PAGE_SIZE-1);
+    /* JYW: 表示用户要求读取的最后一个页面在文件中的页面序号 */
 	last_index = (*ppos + iter->count + PAGE_SIZE-1) >> PAGE_SHIFT;
 	offset = *ppos & ~PAGE_MASK;
 
@@ -2072,14 +2079,23 @@ find_page:
 			error = -EINTR;
 			goto out;
 		}
-
+        /* JYW: 根据mapping和index查看一个文件页面是否在缓存中了，
+         *      其实就是文件缓存树中进行查找
+         */
 		page = find_get_page(mapping, index);
 		if (!page) {
 			if (iocb->ki_flags & IOCB_NOWAIT)
 				goto would_block;
+            /* JYW:
+             *   1.调用具体文件系统的接口封装好bio请求发给Gerneric block 
+             *      layer，也就说该函数并没法保证能把文件数据读取到文件中
+             *   2.该函数分配内存gfp_mask调用的是__GFP_NORETRY | __GFP_NOWARN，
+             *      所以该函数在内存紧张时是很可能分配不到内存
+             */
 			page_cache_sync_readahead(mapping,
 					ra, filp,
 					index, last_index - index);
+            /* JYW: 重新判断是否分配好页面并加入到缓存树中   */
 			page = find_get_page(mapping, index);
 			if (unlikely(page == NULL))
 				goto no_cached_page;
@@ -2089,6 +2105,7 @@ find_page:
 					ra, filp, page,
 					index, last_index - index);
 		}
+        /* JYW: 判断该页面是否是最新的数据 */
 		if (!PageUptodate(page)) {
 			if (iocb->ki_flags & IOCB_NOWAIT) {
 				put_page(page);
@@ -2100,6 +2117,7 @@ find_page:
 			 * wait_on_page_locked is used to avoid unnecessarily
 			 * serialisations and why it's safe.
 			 */
+            /* JYW: 如果不是最新的数据，则会iowait，同步等待数据读取完成 */
 			error = wait_on_page_locked_killable(page);
 			if (unlikely(error))
 				goto readpage_error;
@@ -2148,6 +2166,7 @@ page_ok:
 				goto out;
 			}
 		}
+        /* JYW: 计算拷贝到用户态的字节个数 */
 		nr = nr - offset;
 
 		/* If users can be writing to this page using arbitrary
@@ -2169,9 +2188,10 @@ page_ok:
 		 * Ok, we have the page, and it's up-to-date, so
 		 * now we can copy it to user space...
 		 */
-
+        /* JYW: 将读取的页面[offset, offset + nr]拷贝给用户 */
 		ret = copy_page_to_iter(page, offset, nr, iter);
 		offset += ret;
+        /* JYW: 然后更新index，记录要读取的下一个文件页面序号 */
 		index += offset >> PAGE_SHIFT;
 		offset &= ~PAGE_MASK;
 		prev_offset = offset;
@@ -2214,6 +2234,7 @@ readpage:
 		 */
 		ClearPageError(page);
 		/* Start the actual read. The read will unlock the page. */
+        /* JYW: 调用文件系统的readpage进行文件数据读取，并同步等待读取完成 */
 		error = mapping->a_ops->readpage(filp, page);
 
 		if (unlikely(error)) {
@@ -2258,11 +2279,15 @@ no_cached_page:
 		 * Ok, it wasn't cached, so we need to create a new
 		 * page..
 		 */
+        /* JYW: 首次分配页面失败后，本次分配标志没有__GFP_NORETRY | __GFP_NOWARN，
+         * 表示内存紧张会进入慢速路径，
+         */
 		page = page_cache_alloc(mapping);
 		if (!page) {
 			error = -ENOMEM;
 			goto out;
 		}
+        /* JYW: 分配成功后将页面插入到缓存树和zone lruvec中 */
 		error = add_to_page_cache_lru(page, mapping, index,
 				mapping_gfp_constraint(mapping, GFP_KERNEL));
 		if (error) {

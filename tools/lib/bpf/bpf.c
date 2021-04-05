@@ -59,12 +59,14 @@ static inline __u64 ptr_to_u64(const void *ptr)
 	return (__u64) (unsigned long) ptr;
 }
 
+/* JYW: 系统调用sys_bpf的封装 */
 static inline int sys_bpf(enum bpf_cmd cmd, union bpf_attr *attr,
 			  unsigned int size)
 {
 	return syscall(__NR_bpf, cmd, attr, size);
 }
 
+/* JYW: bpf系统调用BPF_PROG_LOAD命令的封装 */
 static inline int sys_bpf_prog_load(union bpf_attr *attr, unsigned int size)
 {
 	int fd;

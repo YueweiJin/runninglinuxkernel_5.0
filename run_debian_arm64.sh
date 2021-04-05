@@ -40,7 +40,7 @@ prepare_rootfs(){
 		if [ ! -d $rootfs_path ]; then
 			echo "decompressing rootfs..."
 			# split -d -b 80m rootfs_debian_arm64.tar.xz -- rootfs_debian_arm64.part 
-			cat rootfs_debian_arm64.part0* > rootfs_debian_arm64.tar.xz
+			#cat rootfs_debian_arm64.part0* > rootfs_debian_arm64.tar.xz
 			tar -Jxf rootfs_debian_arm64.tar.xz
 		fi
 }
@@ -123,7 +123,7 @@ build_rootfs(){
 }
 
 run_qemu_debian(){
-		qemu-system-aarch64 -m 1024 -cpu cortex-a57 -M virt,gic-version=3,its=on,iommu=smmuv3\
+		qemu-system-aarch64 -m 1024 -cpu cortex-a57 -M virt,gic-version=3,its=on\
 			-nographic $SMP -kernel arch/arm64/boot/Image \
 			-append "noinintrd sched_debug root=/dev/vda rootfstype=ext4 rw crashkernel=256M loglevel=8" \
 			-drive if=none,file=$rootfs_image,id=hd0 \

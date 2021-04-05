@@ -1695,6 +1695,7 @@ static int page_mapcount_is_zero(struct page *page)
  *
  * If unmap is successful, return true. Otherwise, false.
  */
+/* JYW: If unmap is successful, return true. Otherwise, false. */
 bool try_to_unmap(struct page *page, enum ttu_flags flags)
 {
 	struct rmap_walk_control rwc = {

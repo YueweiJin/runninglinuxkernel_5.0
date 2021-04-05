@@ -68,8 +68,10 @@
  * SPARSEMEM_EXTREME with !SPARSEMEM_VMEMMAP).
  */
 enum pageflags {
+    /* JYW: 当分配内存并将页面插入到缓存树以及zone lruvec中前会通过 add_to_page_cache_lru() -> __SetPageLocked()设置页面的PG_locked */
 	PG_locked,		/* Page is locked. Don't touch. */
 	PG_referenced,
+    /* JYW: 当发起IO请求，并且IO操作完成时会及时将页面的PG_locked清除，并设置PG_uptodate */
 	PG_uptodate,
 	PG_dirty,
 	PG_lru,

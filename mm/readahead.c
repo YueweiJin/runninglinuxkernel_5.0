@@ -172,7 +172,7 @@ unsigned int __do_page_cache_readahead(struct address_space *mapping,
 	 */
 	for (page_idx = 0; page_idx < nr_to_read; page_idx++) {
 		pgoff_t page_offset = offset + page_idx;
-
+        /* JYW: 文件数据已经读完，则不需要继续预读 */
 		if (page_offset > end_index)
 			break;
 
@@ -196,6 +196,7 @@ unsigned int __do_page_cache_readahead(struct address_space *mapping,
 		page->index = page_offset;
 		list_add(&page->lru, &page_pool);
 		if (page_idx == nr_to_read - lookahead_size)
+            /* JYW: 对第一个异步预读的页面设置Readahead标志 */
 			SetPageReadahead(page);
 		nr_pages++;
 	}
@@ -206,6 +207,7 @@ unsigned int __do_page_cache_readahead(struct address_space *mapping,
 	 * will then handle the error.
 	 */
 	if (nr_pages)
+        /* JYW: 调用具体文件系统的readpages接口发起IO流程，并将page加入缓存树和lruvec */
 		read_pages(mapping, filp, &page_pool, nr_pages, gfp_mask);
 	BUG_ON(!list_empty(&page_pool));
 out:
@@ -375,6 +377,7 @@ static int try_context_readahead(struct address_space *mapping,
 /*
  * A minimal readahead algorithm for trivial sequential/random reads.
  */
+/* JYW: hit_readahead_marker：区分是sync readahead还是async readahead */
 static unsigned long
 ondemand_readahead(struct address_space *mapping,
 		   struct file_ra_state *ra, struct file *filp,
@@ -382,6 +385,7 @@ ondemand_readahead(struct address_space *mapping,
 		   unsigned long req_size)
 {
 	struct backing_dev_info *bdi = inode_to_bdi(mapping->host);
+    /* JYW: 该窗口最大可预读的页面数 */
 	unsigned long max_pages = ra->ra_pages;
 	unsigned long add_pages;
 	pgoff_t prev_offset;
@@ -396,6 +400,7 @@ ondemand_readahead(struct address_space *mapping,
 	/*
 	 * start of file
 	 */
+    /* JYW: 文件从0开始读，判断为初始顺序读，走initial_readahead */
 	if (!offset)
 		goto initial_readahead;
 
@@ -403,6 +408,7 @@ ondemand_readahead(struct address_space *mapping,
 	 * It's the expected callback offset, assume sequential access.
 	 * Ramp up sizes, and push forward the readahead window.
 	 */
+    /* JYW: 如果是顺序读，加大下次预读窗口页面数量 */
 	if ((offset == (ra->start + ra->size - ra->async_size) ||
 	     offset == (ra->start + ra->size))) {
 		ra->start += ra->size;
@@ -417,6 +423,7 @@ ondemand_readahead(struct address_space *mapping,
 	 * Query the pagecache for async_size, which normally equals to
 	 * readahead size. Ramp it up and use it as the new readahead size.
 	 */
+    /* JYW: 异步预读场景，通过page_cache_async_readahead */
 	if (hit_readahead_marker) {
 		pgoff_t start;
 
@@ -464,6 +471,7 @@ ondemand_readahead(struct address_space *mapping,
 	return __do_page_cache_readahead(mapping, filp, offset, req_size, 0);
 
 initial_readahead:
+    /* JYW: 初始化当前窗口 */
 	ra->start = offset;
 	ra->size = get_init_ra_size(req_size, max_pages);
 	ra->async_size = ra->size > req_size ? ra->size - req_size : ra->size;
@@ -485,7 +493,7 @@ readit:
 			ra->async_size = max_pages >> 1;
 		}
 	}
-
+    /* JYW: 发起文件页面读请求 */
 	return ra_submit(ra, mapping, filp);
 }
 
@@ -555,7 +563,7 @@ page_cache_async_readahead(struct address_space *mapping,
 	 */
 	if (PageWriteback(page))
 		return;
-
+    /* JYW: 将PG_readahead清空 */
 	ClearPageReadahead(page);
 
 	/*

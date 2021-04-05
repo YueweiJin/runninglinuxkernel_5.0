@@ -123,12 +123,23 @@ struct scan_control {
 	unsigned long nr_reclaimed;
 
 	struct {
+        /* JYW: 统计脏页数量，即设置了PG_Dirty标志位的页面，判断条件是PageDirty */
 		unsigned int dirty;
+        /* JYW: 标记了PG_Dirty,但还没设置PG_writeback标志位的页面 */
 		unsigned int unqueued_dirty;
+        /*
+         * JYW: 正在往块设备I/O上进行数据回写
+         *  判断条件：1.脏页或正在回写的页面，这些页面有回写的存储设备
+         *            2.设置了PG_reclaim
+         */
 		unsigned int congested;
+        /* JYW: 正在回写的页面数量 */
 		unsigned int writeback;
+        /* JYW: 处理正在回写的页面时已经有大量的页面在等待回写，需要立即做特殊处理 */
 		unsigned int immediate;
+        /* JYW: 分离的文件页面数量，页面回收机制每次会分离、扫描32个页面 */
 		unsigned int file_taken;
+        /* JYW: 分离的页面数量 */
 		unsigned int taken;
 	} nr;
 };
@@ -801,6 +812,7 @@ typedef enum {
  * pageout is called by shrink_page_list() for each dirty page.
  * Calls ->writepage().
  */
+/* JYW: 回写脏页 */
 static pageout_t pageout(struct page *page, struct address_space *mapping,
 			 struct scan_control *sc)
 {
@@ -852,6 +864,7 @@ static pageout_t pageout(struct page *page, struct address_space *mapping,
 		};
 
 		SetPageReclaim(page);
+        /* JYW: 回写页面 */
 		res = mapping->a_ops->writepage(page, &wbc);
 		if (res < 0)
 			handle_write_error(mapping, page, res);
@@ -1220,6 +1233,7 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 		 */
 		if (PageWriteback(page)) {
 			/* Case 1 above */
+            /* JYW: kswapd发现有大量页面正在回写，则跳过该页面，增加nr_immediate */
 			if (current_is_kswapd() &&
 			    PageReclaim(page) &&
 			    test_bit(PGDAT_WRITEBACK, &pgdat->flags)) {
@@ -1247,6 +1261,7 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 			/* Case 3 above */
 			} else {
 				unlock_page(page);
+                /* JYW: 对于直接页面回收者，睡眠等待这个页面回写完成 */
 				wait_on_page_writeback(page);
 				/* then go back and try same page again */
 				list_add_tail(&page->lru, page_list);
@@ -1325,6 +1340,7 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 
 			if (unlikely(PageTransHuge(page)))
 				flags |= TTU_SPLIT_HUGE_PMD;
+            /* JYW: 判断用户空间是否有映射该页面，若有则返回false */
 			if (!try_to_unmap(page, flags)) {
 				nr_unmap_fail++;
 				goto activate_locked;
@@ -1342,6 +1358,10 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 			 * the rest of the LRU for clean pages and see
 			 * the same dirty pages again (PageReclaim).
 			 */
+            /* JYW: 对于文件页面：
+             *      对于kswapd，只有发现大量脏页才会调用pageout()函数写回脏页，否则略过 
+             *      对于直接回收者，无论是否有大量脏页，都会略过
+             */
 			if (page_is_file_cache(page) &&
 			    (!current_is_kswapd() || !PageReclaim(page) ||
 			     !test_bit(PGDAT_DIRTY, &pgdat->flags))) {
@@ -1356,11 +1376,13 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 
 				goto activate_locked;
 			}
+            /* JYW: 匿名页面都会调用pageout()进行脏页回写 */
 
 			if (references == PAGEREF_RECLAIM_CLEAN)
 				goto keep_locked;
 			if (!may_enter_fs)
 				goto keep_locked;
+            /* JYW: 若不允许回写页面，则跳过 */
 			if (!sc->may_writepage)
 				goto keep_locked;
 
@@ -1370,6 +1392,7 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 			 * starts and then write it out here.
 			 */
 			try_to_unmap_flush_dirty();
+            /* JYW: 回写脏页 */
 			switch (pageout(page, mapping, sc)) {
 			case PAGE_KEEP:
 				goto keep_locked;
@@ -1486,6 +1509,7 @@ keep:
 
 	mem_cgroup_uncharge_list(&free_pages);
 	try_to_unmap_flush();
+    /* JYW: 批量释放页面 */
 	free_unref_page_list(&free_pages);
 
 	list_splice(&ret_pages, page_list);
@@ -2801,6 +2825,7 @@ static bool shrink_node(pg_data_t *pgdat, struct scan_control *sc)
 			 * immediate reclaim and stall if any are encountered
 			 * in the nr_immediate check below.
 			 */
+            /* JYW: 说明系统有大量回写页面，设置PGDAT_WRITEBACK */
 			if (sc->nr.writeback && sc->nr.writeback == sc->nr.taken)
 				set_bit(PGDAT_WRITEBACK, &pgdat->flags);
 
@@ -2809,10 +2834,12 @@ static bool shrink_node(pg_data_t *pgdat, struct scan_control *sc)
 			 * scanned were backed by a congested BDI and
 			 * wait_iff_congested will stall.
 			 */
+            /* JYW: 说明系统有大量页面堵塞在块设备I/O上，设置PGDAT_CONGESTED */
 			if (sc->nr.dirty && sc->nr.dirty == sc->nr.congested)
 				set_bit(PGDAT_CONGESTED, &pgdat->flags);
 
 			/* Allow kswapd to start writing pages during reclaim.*/
+            /* JYW: 说明系统有大量脏页但还没开始回写，设置PGDAT_DIRTY */
 			if (sc->nr.unqueued_dirty == sc->nr.file_taken)
 				set_bit(PGDAT_DIRTY, &pgdat->flags);
 
@@ -2822,6 +2849,7 @@ static bool shrink_node(pg_data_t *pgdat, struct scan_control *sc)
 			 * implies that pages are cycling through the LRU
 			 * faster than they are written so also forcibly stall.
 			 */
+            /* JYW: 处理正在回写的页面时已经有大量的页面在等待回写，需要立即做特殊处理 */
 			if (sc->nr.immediate)
 				congestion_wait(BLK_RW_ASYNC, HZ/10);
 		}
@@ -2840,6 +2868,7 @@ static bool shrink_node(pg_data_t *pgdat, struct scan_control *sc)
 		 * starts encountering unqueued dirty pages or cycling through
 		 * the LRU too quickly.
 		 */
+        /* JYW: 当前是直接回收者，且当前需要节流且设置了PGDAT_CONGESTED，则等一段时间 */
 		if (!sc->hibernation_mode && !current_is_kswapd() &&
 		   current_may_throttle() && pgdat_memcg_congested(pgdat, root))
 			wait_iff_congested(BLK_RW_ASYNC, HZ/10);
