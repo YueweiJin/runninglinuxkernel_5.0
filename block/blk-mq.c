@@ -573,6 +573,7 @@ static void __blk_mq_complete_request_remote(void *data)
 	q->mq_ops->complete(rq);
 }
 
+/* JYW: 结束一个I/O请求 */
 static void __blk_mq_complete_request(struct request *rq)
 {
 	struct blk_mq_ctx *ctx = rq->mq_ctx;
@@ -591,6 +592,7 @@ static void __blk_mq_complete_request(struct request *rq)
 	 * for not degrading IO performance by irqsoff latency.
 	 */
 	if (q->nr_hw_queues == 1) {
+        /* JYW: 结束一个I/O请求 */
 		__blk_complete_request(rq);
 		return;
 	}
@@ -648,6 +650,7 @@ static void hctx_lock(struct blk_mq_hw_ctx *hctx, int *srcu_idx)
  *	Ends all I/O on a request. It does not handle partial completions.
  *	The actual completion happens out-of-order, through a IPI handler.
  **/
+/* JYW: 结束一个I/O请求 */
 bool blk_mq_complete_request(struct request *rq)
 {
 	if (unlikely(blk_should_fake_timeout(rq->q)))

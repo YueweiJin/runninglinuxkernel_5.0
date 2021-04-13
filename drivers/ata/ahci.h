@@ -376,7 +376,9 @@ struct ahci_host_priv {
 	 * be overridden anytime before the host is activated.
 	 */
 	int			(*stop_engine)(struct ata_port *ap);
-
+    /* JYW: AHCI控制器中断处理函数
+     *  EX1: ahci_single_level_irq_intr
+     */
 	irqreturn_t 		(*irq_handler)(int irq, void *dev_instance);
 
 	/* only required for per-port MSI(-X) support */

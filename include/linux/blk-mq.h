@@ -175,6 +175,7 @@ struct blk_mq_ops {
 	 */
 	poll_fn			*poll;
 
+    /* JYW: scsi_softirq_done */
 	complete_fn		*complete;
 
 	/*

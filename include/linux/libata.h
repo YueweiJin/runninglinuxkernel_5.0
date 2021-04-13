@@ -935,6 +935,10 @@ struct ata_port_operations {
 	ata_reset_fn_t		pmp_softreset;
 	ata_reset_fn_t		pmp_hardreset;
 	ata_postreset_fn_t	pmp_postreset;
+    /* JYW:
+     *      有PM： sata_pmp_error_handler
+     *      无PM： ata_std_error_handler
+     */
 	void (*error_handler)(struct ata_port *ap);
 	void (*lost_interrupt)(struct ata_port *ap);
 	void (*post_internal_cmd)(struct ata_queued_cmd *qc);

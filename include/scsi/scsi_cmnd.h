@@ -130,6 +130,7 @@ struct scsi_cmnd {
 
 	/* Low-level done function - can be used by low-level driver to point
 	 *        to completion function.  Not used by mid/upper level code. */
+	/* JYW: scsi_mq_done */
 	void (*scsi_done) (struct scsi_cmnd *);
 
 	/*

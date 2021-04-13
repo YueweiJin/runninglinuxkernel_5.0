@@ -1641,6 +1641,7 @@ static blk_status_t scsi_mq_prep_fn(struct request *req)
 	return scsi_setup_cmnd(sdev, req);
 }
 
+/* JYW: host完成请求后调用中间层函数，回调 scsi_done */
 static void scsi_mq_done(struct scsi_cmnd *cmd)
 {
 	if (unlikely(test_and_set_bit(SCMD_STATE_COMPLETE, &cmd->state)))
@@ -1653,6 +1654,7 @@ static void scsi_mq_done(struct scsi_cmnd *cmd)
 	 * timeout handler will see it needs to escalate its own error
 	 * recovery.
 	 */
+    /* JYW: 结束一个I/O请求 */
 	if (unlikely(!blk_mq_complete_request(cmd->request)))
 		clear_bit(SCMD_STATE_COMPLETE, &cmd->state);
 }

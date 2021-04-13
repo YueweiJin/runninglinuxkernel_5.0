@@ -68,6 +68,7 @@ void scsi_eh_wakeup(struct Scsi_Host *shost)
 
 	if (scsi_host_busy(shost) == shost->host_failed) {
 		trace_scsi_eh_wakeup(shost);
+        /* JYW: scsi_error_handler (from: scsi_host_alloc) */
 		wake_up_process(shost->ehandler);
 		SCSI_LOG_ERROR_RECOVERY(5, shost_printk(KERN_INFO, shost,
 			"Waking error handler thread\n"));
@@ -2195,7 +2196,7 @@ int scsi_error_handler(void *data)
 					     shost->host_no));
 			continue;
 		}
-
+        /* JYW: ata_scsi_error */
 		if (shost->transportt->eh_strategy_handler)
 			shost->transportt->eh_strategy_handler(shost);
 		else

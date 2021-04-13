@@ -5506,6 +5506,7 @@ int sata_scr_valid(struct ata_link *link)
  *	RETURNS:
  *	0 on success, negative errno on failure.
  */
+/* JYW: 读取指定端口的SCR寄存器 */
 int sata_scr_read(struct ata_link *link, int reg, u32 *val)
 {
 	if (ata_is_host_link(link)) {

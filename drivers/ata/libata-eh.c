@@ -2140,6 +2140,7 @@ static void ata_eh_link_autopsy(struct ata_link *link)
 		return;
 
 	/* obtain and analyze SError */
+    /* JYW: 读取指定端口的SCR寄存器 */
 	rc = sata_scr_read(link, SCR_ERROR, &serror);
 	if (rc == 0) {
 		ehc->i.serror |= serror;
@@ -2255,6 +2256,7 @@ static void ata_eh_link_autopsy(struct ata_link *link)
  *	LOCKING:
  *	Kernel thread context (may sleep).
  */
+/* JYW: 分析错误码并决定修复策略 */
 void ata_eh_autopsy(struct ata_port *ap)
 {
 	struct ata_link *link;

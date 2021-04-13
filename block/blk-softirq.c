@@ -20,6 +20,7 @@ static DEFINE_PER_CPU(struct list_head, blk_cpu_done);
  * Softirq action handler - move entries to local list and loop over them
  * while passing them to the queue registered handler.
  */
+/* JYW: 由__blk_complete_request唤醒 */
 static __latent_entropy void blk_done_softirq(struct softirq_action *h)
 {
 	struct list_head *cpu_list, local_list;
@@ -34,6 +35,7 @@ static __latent_entropy void blk_done_softirq(struct softirq_action *h)
 
 		rq = list_entry(local_list.next, struct request, ipi_list);
 		list_del_init(&rq->ipi_list);
+        /* JYW: scsi_softirq_done() */
 		rq->q->mq_ops->complete(rq);
 	}
 }
@@ -95,6 +97,7 @@ static int blk_softirq_cpu_dead(unsigned int cpu)
 	return 0;
 }
 
+/* JYW: 结束一个I/O请求 */
 void __blk_complete_request(struct request *req)
 {
 	struct request_queue *q = req->q;
@@ -137,6 +140,9 @@ do_local:
 		 * hasn't run yet.
 		 */
 		if (list->next == &req->ipi_list)
+            /* JYW: 触发block软中断处理函数
+             *      blk_done_softirq
+             */
 			raise_softirq_irqoff(BLOCK_SOFTIRQ);
 	} else if (raise_blk_irq(ccpu, req))
 		goto do_local;
