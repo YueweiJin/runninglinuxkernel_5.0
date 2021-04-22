@@ -131,22 +131,29 @@ enum numa_stat_item {
 
 enum zone_stat_item {
 	/* First 128 byte cacheline (assuming 64 bit words) */
+    /* JYW: 空闲页面数量 */
 	NR_FREE_PAGES,
+    /* JYW: 用于LRU_BASE统计 */
 	NR_ZONE_LRU_BASE, /* Used only for compaction and reclaim retry */
 	NR_ZONE_INACTIVE_ANON = NR_ZONE_LRU_BASE,
 	NR_ZONE_ACTIVE_ANON,
 	NR_ZONE_INACTIVE_FILE,
 	NR_ZONE_ACTIVE_FILE,
+    /* JYW: 不可回收页面数量 */
 	NR_ZONE_UNEVICTABLE,
+    /* JYW: 脏页、正在写回以及不稳定的页面数量 */
 	NR_ZONE_WRITE_PENDING,	/* Count of dirty, writeback and unstable pages */
 	NR_MLOCK,		/* mlock()ed pages found and moved off LRU */
+    /* JYW: 用于页表的页面数量 */
 	NR_PAGETABLE,		/* used for pagetables */
+    /* JYW: 用于内核栈的页面数量 */
 	NR_KERNEL_STACK_KB,	/* measured in KiB */
 	/* Second 128 byte cacheline */
 	NR_BOUNCE,
 #if IS_ENABLED(CONFIG_ZSMALLOC)
 	NR_ZSPAGES,		/* allocated in zsmalloc */
 #endif
+    /* JYW: CMA中的空闲页面数量 */
 	NR_FREE_CMA_PAGES,
 	NR_VM_ZONE_STAT_ITEMS };
 
@@ -166,6 +173,9 @@ enum node_stat_item {
 	WORKINGSET_ACTIVATE,
 	WORKINGSET_RESTORE,
 	WORKINGSET_NODERECLAIM,
+    /* JYW: 匿名页面和进程地址空间建立映射关系时调用
+     *（from: page_add_new_anon_rmap）
+     */
 	NR_ANON_MAPPED,	/* Mapped anonymous pages */
 	NR_FILE_MAPPED,	/* pagecache pages mapped into pagetables.
 			   only modified from process context */

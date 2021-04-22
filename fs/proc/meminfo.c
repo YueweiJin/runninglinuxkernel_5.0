@@ -53,14 +53,19 @@ static int meminfo_proc_show(struct seq_file *m, void *v)
 	for (lru = LRU_BASE; lru < NR_LRU_LISTS; lru++)
 		pages[lru] = global_node_page_state(NR_LRU_BASE + lru);
 
+    /* JYW: 空闲页面 + 文件映射页面 + 可回收页面 - 系统保留页面 */
 	available = si_mem_available();
 	sreclaimable = global_node_page_state(NR_SLAB_RECLAIMABLE);
 	sunreclaim = global_node_page_state(NR_SLAB_UNRECLAIMABLE);
-
+    /* JYW: 系统当前可用物理内存总量 */
 	show_val_kb(m, "MemTotal:       ", i.totalram);
+    /* JYW: 当前剩余空闲物理内存，读取vm_zone_stat的NR_FREE_PAGES */
 	show_val_kb(m, "MemFree:        ", i.freeram);
+    /* JYW: 空闲页面 + 文件映射页面 + 可回收页面 - 系统保留页面 */
 	show_val_kb(m, "MemAvailable:   ", available);
+    /* JYW: 用于页面高速缓存的页面，由nr_blockdev_pages计算 */
 	show_val_kb(m, "Buffers:        ", i.bufferram);
+    /* JYW: 用于页面高速缓存的页面，NR_FILE_PAGES - total_swapcache_pages - i.bufferram */
 	show_val_kb(m, "Cached:         ", cached);
 	show_val_kb(m, "SwapCached:     ", total_swapcache_pages());
 	show_val_kb(m, "Active:         ", pages[LRU_ACTIVE_ANON] +
