@@ -905,6 +905,9 @@ struct file {
 	} f_u;
 	struct path		f_path;
 	struct inode		*f_inode;	/* cached value */
+    /* JYW: 实例如下：
+     *      socket_file_ops (from: sock_alloc_file)
+     */
 	const struct file_operations	*f_op;
 
 	/*
@@ -927,6 +930,10 @@ struct file {
 	void			*f_security;
 #endif
 	/* needed for tty driver, and maybe others */
+    /* JYW: 实例如下：
+     *      struct socket (from: sock_alloc_file )
+     *      struct eventpoll (from: do_epoll_create)
+     */
 	void			*private_data;
 
 #ifdef CONFIG_EPOLL

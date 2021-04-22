@@ -383,7 +383,7 @@ static struct file_system_type sock_fs_type = {
  *	with shared fd spaces, we cannot solve it inside kernel,
  *	but we take care of internal coherence yet.
  */
-
+/* JYW: 申请新的文件对象，并设置到新的socket上 */
 struct file *sock_alloc_file(struct socket *sock, int flags, const char *dname)
 {
 	struct file *file;
@@ -465,6 +465,7 @@ struct socket *sockfd_lookup(int fd, int *err)
 }
 EXPORT_SYMBOL(sockfd_lookup);
 
+/* JYW: 根据fd查找监听的socket */
 static struct socket *sockfd_lookup_light(int fd, int *err, int *fput_needed)
 {
 	struct fd f = fdget(fd);
@@ -539,6 +540,7 @@ static const struct inode_operations sockfs_inode_ops = {
  *	NULL is returned.
  */
 
+/* JYW: 申请并初始化新的socket */
 struct socket *sock_alloc(void)
 {
 	struct inode *inode;
@@ -1550,17 +1552,21 @@ int __sys_accept4(int fd, struct sockaddr __user *upeer_sockaddr,
 
 	if (SOCK_NONBLOCK != O_NONBLOCK && (flags & SOCK_NONBLOCK))
 		flags = (flags & ~SOCK_NONBLOCK) | O_NONBLOCK;
-
+    /* JYW: 根据fd查找监听的socket */
 	sock = sockfd_lookup_light(fd, &err, &fput_needed);
 	if (!sock)
 		goto out;
 
 	err = -ENFILE;
+    /* JYW: 申请并初始化新的socket */
 	newsock = sock_alloc();
 	if (!newsock)
 		goto out_put;
 
 	newsock->type = sock->type;
+    /* JYW: 实例如下：
+     *      struct proto_ops inet_stream_ops
+     */
 	newsock->ops = sock->ops;
 
 	/*
@@ -1575,6 +1581,7 @@ int __sys_accept4(int fd, struct sockaddr __user *upeer_sockaddr,
 		sock_release(newsock);
 		goto out_put;
 	}
+    /* JYW: 申请新的文件对象，并设置到新的socket上 */
 	newfile = sock_alloc_file(newsock, flags, sock->sk->sk_prot_creator->name);
 	if (IS_ERR(newfile)) {
 		err = PTR_ERR(newfile);
@@ -1585,7 +1592,9 @@ int __sys_accept4(int fd, struct sockaddr __user *upeer_sockaddr,
 	err = security_socket_accept(sock, newsock);
 	if (err)
 		goto out_fd;
-
+    /* JYW: 实例如下：
+     *      inet_accept
+     */
 	err = sock->ops->accept(sock, newsock, sock->file->f_flags, false);
 	if (err < 0)
 		goto out_fd;
@@ -1604,7 +1613,7 @@ int __sys_accept4(int fd, struct sockaddr __user *upeer_sockaddr,
 	}
 
 	/* File flags are not inherited via accept() unlike another OSes. */
-
+    /* JYW: 添加新文件到当前进程的打开文件列表 */
 	fd_install(newfd, newfile);
 	err = newfd;
 
