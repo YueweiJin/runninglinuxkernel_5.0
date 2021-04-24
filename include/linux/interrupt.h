@@ -506,6 +506,11 @@ extern const char * const softirq_to_name[NR_SOFTIRQS];
 
 struct softirq_action
 {
+    /* JYW: 
+     *  TASKLET_SOFTIRQ : tasklet_action (from: softirq_init)
+     *  HI_SOFTIRQ : tasklet_hi_action (from: tasklet_hi_action)
+     *  NET_RX_SOFTIRQ : net_rx_action (from: net_dev_init)
+     */
 	void	(*action)(struct softirq_action *);
 };
 
