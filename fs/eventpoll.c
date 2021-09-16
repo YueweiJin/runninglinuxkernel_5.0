@@ -195,15 +195,21 @@ struct eventpoll {
 	struct mutex mtx;
 
 	/* Wait queue used by sys_epoll_wait() */
+    /* JYW: 
+     *      sys_epoll_wait用到的等待队列，
+     *      软中断数据就绪时会通过wq来找到阻塞在epoll对象上的用户进程
+     */
 	wait_queue_head_t wq;
 
 	/* Wait queue used by file->poll() */
 	wait_queue_head_t poll_wait;
 
 	/* List of ready file descriptors */
+    /* JYW: 连接就绪的描述符都会放到这里 */
 	struct list_head rdllist;
 
 	/* RB tree root used to store monitored fd structs */
+    /* JYW: 每个epoll对象中都有一颗红黑树，管理用户进程下添加进来的所有socket连接  */
 	struct rb_root_cached rbr;
 
 	/*
@@ -2083,6 +2089,7 @@ SYSCALL_DEFINE4(epoll_ctl, int, epfd, int, op, int, fd,
 	 * At this point it is safe to assume that the "private_data" contains
 	 * our own data structure.
 	 */
+    /* JYW: 根据epfd找到eventpoll对象 */
 	ep = f.file->private_data;
 
 	/*
@@ -2136,6 +2143,7 @@ SYSCALL_DEFINE4(epoll_ctl, int, epfd, int, op, int, fd,
 	case EPOLL_CTL_ADD:
 		if (!epi) {
 			epds.events |= EPOLLERR | EPOLLHUP;
+            /* JYW: 添加一个socket连接对象 */
 			error = ep_insert(ep, &epds, tf.file, fd, full_check);
 		} else
 			error = -EEXIST;

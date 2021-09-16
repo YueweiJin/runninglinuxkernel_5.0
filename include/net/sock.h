@@ -184,6 +184,9 @@ struct sock_common {
 		struct hlist_node	skc_bind_node;
 		struct hlist_node	skc_portaddr_node;
 	};
+    /* JYW: 实例如下：
+     *      struct proto tcp_prot
+     */
 	struct proto		*skc_prot;
 	possible_net_t		skc_net;
 
@@ -496,6 +499,9 @@ struct sock {
 	struct sock_cgroup_data	sk_cgrp_data;
 	struct mem_cgroup	*sk_memcg;
 	void			(*sk_state_change)(struct sock *sk);
+    /* JYW: 实例如下：
+     *      sock_def_readable
+     */
 	void			(*sk_data_ready)(struct sock *sk);
 	void			(*sk_write_space)(struct sock *sk);
 	void			(*sk_error_report)(struct sock *sk);

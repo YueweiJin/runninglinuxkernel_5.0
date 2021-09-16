@@ -1,0 +1,11 @@
+*.o
+*.cmd
+modules.order
+modules.builtin
+built-in.a
+*.o.d
+*.a
+*.tmp
+*.dtb
+*.so
+*.ver

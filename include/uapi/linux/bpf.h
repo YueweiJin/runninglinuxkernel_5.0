@@ -143,19 +143,27 @@ enum bpf_map_type {
  */
 enum bpf_prog_type {
 	BPF_PROG_TYPE_UNSPEC,
+    /* JYW: 套接字过滤器程序 */
 	BPF_PROG_TYPE_SOCKET_FILTER,
+    /* JYW: kprobe程序 */
 	BPF_PROG_TYPE_KPROBE,
 	BPF_PROG_TYPE_SCHED_CLS,
 	BPF_PROG_TYPE_SCHED_ACT,
+    /* JYW: 跟踪点程序 */
 	BPF_PROG_TYPE_TRACEPOINT,
+    /* JYW: XDP程序 */
 	BPF_PROG_TYPE_XDP,
 	BPF_PROG_TYPE_PERF_EVENT,
+    /* JYW: cgroup套接字程序 */
 	BPF_PROG_TYPE_CGROUP_SKB,
+    /* JYW: cgroup打开套接字程序 */
 	BPF_PROG_TYPE_CGROUP_SOCK,
 	BPF_PROG_TYPE_LWT_IN,
 	BPF_PROG_TYPE_LWT_OUT,
 	BPF_PROG_TYPE_LWT_XMIT,
+    /* JYW: 套接字选项程序 */
 	BPF_PROG_TYPE_SOCK_OPS,
+    /* JYW: 套接字映射程序 */
 	BPF_PROG_TYPE_SK_SKB,
 	BPF_PROG_TYPE_CGROUP_DEVICE,
 	BPF_PROG_TYPE_SK_MSG,

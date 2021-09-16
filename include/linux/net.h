@@ -117,7 +117,11 @@ struct socket {
 	struct socket_wq	*wq;
 
 	struct file		*file;
+    /* JYW: 网络层实体 */
 	struct sock		*sk;
+    /* JYW: 实例如下：
+     *      struct proto_ops inet_stream_ops
+     */
 	const struct proto_ops	*ops;
 };
 
