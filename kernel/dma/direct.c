@@ -308,6 +308,10 @@ void dma_direct_unmap_sg(struct device *dev, struct scatterlist *sgl,
 EXPORT_SYMBOL(dma_direct_unmap_sg);
 #endif
 
+/* JYW:
+ * 可直接DMA的必要条件1：未强制开启swiotlb_force
+ * 可直接DMA的必要条件2：dev不存在 或者 dev存在且该设备的DMA寻址能力能够寻址到该dma_addr
+ */
 static inline bool dma_direct_possible(struct device *dev, dma_addr_t dma_addr,
 		size_t size)
 {
@@ -322,12 +326,14 @@ dma_addr_t dma_direct_map_page(struct device *dev, struct page *page,
 	phys_addr_t phys = page_to_phys(page) + offset;
 	dma_addr_t dma_addr = phys_to_dma(dev, phys);
 
+	/* JYW: 如果无法直接寻址，则走swiotlb_map */
 	if (unlikely(!dma_direct_possible(dev, dma_addr, size)) &&
 	    !swiotlb_map(dev, &phys, &dma_addr, size, dir, attrs)) {
 		report_addr(dev, dma_addr, size);
 		return DMA_MAPPING_ERROR;
 	}
 
+	/* JYW: */
 	if (!dev_is_dma_coherent(dev) && !(attrs & DMA_ATTR_SKIP_CPU_SYNC))
 		arch_sync_dma_for_device(dev, phys, size, dir);
 	return dma_addr;
