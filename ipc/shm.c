@@ -1192,6 +1192,7 @@ long ksys_shmctl(int shmid, int cmd, struct shmid_ds __user *buf)
 	}
 }
 
+/* JYW: 系统调用shmctl */
 SYSCALL_DEFINE3(shmctl, int, shmid, int, cmd, struct shmid_ds __user *, buf)
 {
 	return ksys_shmctl(shmid, cmd, buf);
