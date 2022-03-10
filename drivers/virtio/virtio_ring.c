@@ -424,7 +424,7 @@ static inline int virtqueue_add_split(struct virtqueue *_vq,
 				      gfp_t gfp)
 {
 	struct vring_virtqueue *vq = to_vvq(_vq);
-	struct scatterlist *sg;
+	struct scatrlist *sg;
 	struct vring_desc *desc;
 	unsigned int i, n, avail, descs_used, uninitialized_var(prev), err_idx;
 	int head;

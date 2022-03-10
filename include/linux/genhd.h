@@ -85,11 +85,16 @@ struct partition {
 
 struct disk_stats {
 	u64 nsecs[NR_STAT_GROUPS];
+	/* JYW: 读写扇区总数，blk_account_io_completion()中更新 */
 	unsigned long sectors[NR_STAT_GROUPS];
+	/* JYW: 传输完成的读写IO个数， blk_account_io_done()中更新 */
 	unsigned long ios[NR_STAT_GROUPS];
+	/* JYW: 合并bio的个数，drive_stat_acct(blk_account_io_start)更新合并计数 */
 	unsigned long merges[NR_STAT_GROUPS];
 	unsigned long io_ticks;
+	/* JYW: IO在队列中的时间，受IO队列中IO个数的影响 */
 	unsigned long time_in_queue;
+	/* JYW: IO队列中读写请求个数 */
 	local_t in_flight[2];
 };
 
@@ -118,13 +123,16 @@ struct hd_struct {
 	unsigned int discard_alignment;
 	struct device __dev;
 	struct kobject *holder_dir;
+	/* JYW: partno为分区号，从1开始；主分区的分区号为0 */
 	int policy, partno;
 	struct partition_meta_info *info;
 #ifdef CONFIG_FAIL_MAKE_REQUEST
 	int make_it_fail;
 #endif
+	/* JYW: 记录当前系统的时间戳 */
 	unsigned long stamp;
 #ifdef	CONFIG_SMP
+	/* JYW: IO使用率等原始数据 */
 	struct disk_stats __percpu *dkstats;
 #else
 	struct disk_stats dkstats;
@@ -193,6 +201,7 @@ struct gendisk {
 	 * helpers.
 	 */
 	struct disk_part_tbl __rcu *part_tbl;
+	/* JYW: 对应主分区 */
 	struct hd_struct part0;
 
 	const struct block_device_operations *fops;

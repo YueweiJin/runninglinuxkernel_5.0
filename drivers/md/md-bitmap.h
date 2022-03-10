@@ -181,6 +181,7 @@ struct bitmap {
 
 	struct bitmap_counts {
 		spinlock_t lock;
+		/* JYW: 指向内存bitmap page */
 		struct bitmap_page *bp;
 		unsigned long pages;		/* total number of pages
 						 * in the bitmap */
@@ -195,9 +196,11 @@ struct bitmap {
 	struct mddev *mddev; /* the md device that the bitmap is for */
 
 	__u64	events_cleared;
+	/* JYW: bitmap同步标志 */
 	int need_sync;
 
 	struct bitmap_storage {
+		/* JYW: bitmap文件 */
 		struct file *file;		/* backing disk file */
 		struct page *sb_page;		/* cached copy of the bitmap
 						 * file superblock */

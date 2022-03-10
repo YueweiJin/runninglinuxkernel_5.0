@@ -1005,6 +1005,7 @@ static int md_bitmap_file_test_bit(struct bitmap *bitmap, sector_t block)
 /* this gets called when the md device is ready to unplug its underlying
  * (slave) device queues -- before we let any writes go down, we need to
  * sync the dirty pages of the bitmap file to disk */
+/* JYW: 将内存中的bitmap位图同步刷新到外部磁盘bitmap文件中 */
 void md_bitmap_unplug(struct bitmap *bitmap)
 {
 	unsigned long i;
@@ -1392,6 +1393,7 @@ __acquires(bitmap->lock)
 			&(bitmap->bp[page].map[pageoff]);
 }
 
+/* JYW: 对阵列写数据前，将内存中的对应bitmap位图置位 */
 int md_bitmap_startwrite(struct bitmap *bitmap, sector_t offset, unsigned long sectors, int behind)
 {
 	if (!bitmap)
@@ -1456,6 +1458,7 @@ int md_bitmap_startwrite(struct bitmap *bitmap, sector_t offset, unsigned long s
 }
 EXPORT_SYMBOL(md_bitmap_startwrite);
 
+/* JYW: 对阵列写数据后，将内存中的对应bitmap位图清零 */
 void md_bitmap_endwrite(struct bitmap *bitmap, sector_t offset,
 			unsigned long sectors, int success, int behind)
 {

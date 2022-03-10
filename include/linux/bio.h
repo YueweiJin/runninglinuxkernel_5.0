@@ -79,6 +79,7 @@
 /*
  * Check whether this bio carries any data or not. A NULL bio is allowed.
  */
+/* JYW: 检查bio是否携带数据 */
 static inline bool bio_has_data(struct bio *bio)
 {
 	if (bio &&

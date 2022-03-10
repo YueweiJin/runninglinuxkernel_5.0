@@ -188,7 +188,7 @@ static struct virtqueue *vp_setup_vq(struct virtio_device *vdev, unsigned index,
 	/* fill out our structure that represents an active queue */
 	if (!info)
 		return ERR_PTR(-ENOMEM);
-
+	/* JYW: setup_vq */
 	vq = vp_dev->setup_vq(vp_dev, info, index, callback, name, ctx,
 			      msix_vec);
 	if (IS_ERR(vq))

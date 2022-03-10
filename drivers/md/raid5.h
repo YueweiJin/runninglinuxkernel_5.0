@@ -264,6 +264,7 @@ struct stripe_head {
 /* stripe_head_state - collects and tracks the dynamic state of a stripe_head
  *     for handle_stripe.
  */
+/* JYW: 条带的处理状态 */
 struct stripe_head_state {
 	/* 'syncing' means that we need to read all devices, either
 	 * to check/correct parity, or to reconstruct a missing device.
@@ -566,14 +567,20 @@ struct r5pending_data {
 	struct bio_list bios;
 };
 
+/* JYW: raid5的全局配置结构体 */
 struct r5conf {
+	/* JYW: 条带哈希表 */
 	struct hlist_head	*stripe_hashtbl;
 	/* only protect corresponding hash list and inactive_list */
 	spinlock_t		hash_locks[NR_STRIPE_HASH_LOCKS];
+	/* JYW: md设备 */
 	struct mddev		*mddev;
+	/* JYW: 每个trunk中扇区个数 */
 	int			chunk_sectors;
+	/* JYW: 级别、校验条带分布算法、写方式标志 */
 	int			level, algorithm, rmw_level;
 	int			max_degraded;
+	/* JYW: 磁盘的数量 */
 	int			raid_disks;
 	int			max_nr_stripes;
 	int			min_nr_stripes;
@@ -601,7 +608,7 @@ struct r5conf {
 						  * devices.  May be negative,
 						  * but is closest to zero.
 						  */
-
+	/* JYW: 根据stripe_head的状态将其放入不同的list中 */
 	struct list_head	handle_list; /* stripes needing handling */
 	struct list_head	loprio_list; /* low priority stripes */
 	struct list_head	hold_list; /* preread ready stripes */
@@ -650,6 +657,7 @@ struct r5conf {
 	/*
 	 * Free stripes pool
 	 */
+	/* JYW: 活跃条带的个数 */
 	atomic_t		active_stripes;
 	struct list_head	inactive_list[NR_STRIPE_HASH_LOCKS];
 

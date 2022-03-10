@@ -71,6 +71,7 @@ struct vhost_blk {
 	struct vhost_virtqueue vq;
 	struct llist_head llhead;
 	atomic_t req_inflight[2];
+	/* JYW： vhost_blk_handle_host_kick */
 	struct vhost_work work;
 	spinlock_t flush_lock;
 	struct vhost_dev dev;
@@ -492,6 +493,7 @@ static inline void vhost_blk_stop(struct vhost_blk *blk, struct file **file)
 	*file = f;
 }
 
+/* JYW: 打开驱动节点，做必要的初始化 */
 static int vhost_blk_open(struct inode *inode, struct file *file)
 {
 	struct vhost_blk *blk;
@@ -556,6 +558,7 @@ static int vhost_blk_set_features(struct vhost_blk *blk, u64 features)
 	return 0;
 }
 
+/* JYW: 关联后端设备文件 */
 static long vhost_blk_set_backend(struct vhost_blk *blk, unsigned index, int fd)
 {
 	struct vhost_virtqueue *vq = &blk->vq;
@@ -579,7 +582,7 @@ static long vhost_blk_set_backend(struct vhost_blk *blk, unsigned index, int fd)
 		ret = -EFAULT;
 		goto out_vq;
 	}
-
+	/* JYW：获取到fd对应的file结构 */
 	file = fget(fd);
 	if (IS_ERR(file)) {
 		ret = PTR_ERR(file);
@@ -664,6 +667,7 @@ static long vhost_blk_ioctl(struct file *f, unsigned int ioctl,
 	int ret;
 
 	switch (ioctl) {
+	/* JYW: 设置后端文件路径 */
 	case VHOST_BLK_SET_BACKEND:
 		if (copy_from_user(&backend, argp, sizeof(backend)))
 			return -EFAULT;

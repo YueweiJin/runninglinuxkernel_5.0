@@ -19,6 +19,7 @@ typedef void (*vhost_work_fn_t)(struct vhost_work *work);
 #define VHOST_WORK_QUEUED 1
 struct vhost_work {
 	struct llist_node	  node;
+	/* JYW：vhost_blk_handle_host_kick */
 	vhost_work_fn_t		  fn;
 	unsigned long		  flags;
 };
@@ -99,6 +100,7 @@ struct vhost_virtqueue {
 	struct vhost_poll poll;
 
 	/* The routine to call when the Guest pings us, or timeout. */
+	/* JYW: vhost-blk: vhost_blk_handle_guest_kick */
 	vhost_work_fn_t handle_kick;
 
 	/* Last available index we saw. */

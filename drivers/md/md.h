@@ -266,10 +266,13 @@ struct flush_bio {
 };
 
 struct mddev {
+	/* JYW: 指向r5conf */
 	void				*private;
+	/* JYW: RAID操作函数集合 */
 	struct md_personality		*pers;
 	dev_t				unit;
 	int				md_minor;
+	/* JYW: 成员磁盘链表 */
 	struct list_head		disks;
 	unsigned long			flags;
 	unsigned long			sb_flags;
@@ -296,14 +299,20 @@ struct mddev {
 	int				external;	/* metadata is
 							 * managed externally */
 	char				metadata_type[17]; /* externally set*/
+	/* JYW: 条块大小，单位扇区 */
 	int				chunk_sectors;
 	time64_t			ctime, utime;
+	/* JYW: 级别，校验条块分布算法 */
 	int				level, layout;
+	/* JYW: 级别名 */
 	char				clevel[16];
+	/* JYW: 磁盘数目 */
 	int				raid_disks;
 	int				max_disks;
+	/* JYW: 每个成员磁盘在组阵列时的大小 */
 	sector_t			dev_sectors;	/* used size of
 							 * component devices */
+	/* JYW: 阵列总容量 */
 	sector_t			array_sectors; /* exported array size */
 	int				external_size; /* size managed
 							* externally */
@@ -366,7 +375,7 @@ struct mddev {
 	int				parallel_resync;
 
 	int				ok_start_degraded;
-
+	/* JYW: 重建标志位 */
 	unsigned long			recovery;
 	/* If a RAID personality determines that recovery (of a particular
 	 * device) will fail due to a read error on the source device, it
@@ -388,10 +397,12 @@ struct mddev {
 	struct mutex			open_mutex;
 	struct mutex			reconfig_mutex;
 	atomic_t			active;		/* general refcount */
+	/* JYW: 打开次数 */
 	atomic_t			openers;	/* number of active opens */
 
 	int				changed;	/* True if we might need to
 							 * reread partition info */
+	/* JYW: 降级标志 */
 	int				degraded;	/* whether md should consider
 							 * adding a spare
 							 */
@@ -452,6 +463,7 @@ struct mddev {
 		unsigned long		default_space; /* space available at
 							* default offset */
 		struct mutex		mutex;
+		/* JYW: 不同于条带块大小，一般比前者大的多 */
 		unsigned long		chunksize;
 		unsigned long		daemon_sleep; /* how many jiffies between updates? */
 		unsigned long		max_write_behind; /* write-behind mode */
@@ -534,6 +546,7 @@ struct md_personality
 	int level;
 	struct list_head list;
 	struct module *owner;
+	/* JYW: raid5：raid5_make_request */
 	bool (*make_request)(struct mddev *mddev, struct bio *bio);
 	/*
 	 * start up works that do NOT require md_thread. tasks that

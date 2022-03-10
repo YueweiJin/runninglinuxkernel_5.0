@@ -1119,6 +1119,7 @@ extern void blk_set_queue_dying(struct request_queue *);
  * the plug list when the task sleeps by itself. For details, please see
  * schedule() where blk_schedule_flush_plug() is called.
  */
+/* JYW: IO请求在被添加到调度队列中时会先经过Plug List一层，然后经过unplug操作才会被添加到调度队列中，这整个过程被称为蓄流和泄流 */
 struct blk_plug {
 	struct list_head mq_list; /* blk-mq requests */
 	struct list_head cb_list; /* md requires an unplug callback */
@@ -1132,6 +1133,7 @@ struct blk_plug_cb;
 typedef void (*blk_plug_cb_fn)(struct blk_plug_cb *, bool);
 struct blk_plug_cb {
 	struct list_head list;
+	/* JYW: raid5：raid5_unplug */
 	blk_plug_cb_fn callback;
 	void *data;
 };
