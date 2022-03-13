@@ -352,6 +352,7 @@ static void release_inactive_stripe_list(struct r5conf *conf,
 			if (list_empty(conf->inactive_list + hash) &&
 			    !list_empty(list))
 				atomic_dec(&conf->empty_inactive_list_nr);
+			/* JYW: 将list链表合并到inactive_list链表 */
 			list_splice_tail_init(list, conf->inactive_list + hash);
 			do_wakeup = true;
 			spin_unlock_irqrestore(conf->hash_locks + hash, flags);
@@ -359,7 +360,7 @@ static void release_inactive_stripe_list(struct r5conf *conf,
 		size--;
 		hash--;
 	}
-
+	/* JYW: 唤醒 */
 	if (do_wakeup) {
 		wake_up(&conf->wait_for_stripe);
 		if (atomic_read(&conf->active_stripes) == 0)
@@ -455,7 +456,7 @@ static struct stripe_head *get_free_stripe(struct r5conf *conf, int hash)
 {
 	struct stripe_head *sh = NULL;
 	struct list_head *first;
-	/* JYW: 正常应该是在inactive_list的链表中 */
+	/* JYW: 正常应该是在inactive_list的链表中，如果没有则返回空 */
 	if (list_empty(conf->inactive_list + hash))
 		goto out;
 	/* JYW: 如果在inactive_list链表，则从LRU中摘取 */
@@ -527,7 +528,7 @@ retry:
 	sh->generation = conf->generation - previous;
 	/* JYW: 磁盘的数量 */
 	sh->disks = previous ? conf->previous_raid_disks : conf->raid_disks;
-	/* JYW: 该条带对应的偏移量 */
+	/* JYW: 记录该条带对应的扇区偏移量 */
 	sh->sector = sector;
 	stripe_set_idx(sector, conf, previous, sh);
 	sh->state = 0;
@@ -544,6 +545,7 @@ retry:
 			WARN_ON(1);
 		}
 		dev->flags = 0;
+		/* JYW: 根据sh->sector，反推对应MD的sector号 */
 		dev->sector = raid5_compute_blocknr(sh, i, previous);
 	}
 	if (read_seqcount_retry(&conf->gen_lock, seq))
@@ -651,13 +653,16 @@ static int has_failed(struct r5conf *conf)
 	return 0;
 }
 
-/* JYW: 找到sector对应的stripe_head */
+/*
+ * JYW: 找到sector对应的stripe_head
+ * sector：具体盘的请求起始扇区号
+ */
 struct stripe_head *
 raid5_get_active_stripe(struct r5conf *conf, sector_t sector,
 			int previous, int noblock, int noquiesce)
 {
 	struct stripe_head *sh;
-	/* JYW: 针对sector计算hash */
+	/* JYW: 针对某盘的sector计算hash值 */
 	int hash = stripe_hash_locks_hash(sector);
 	int inc_empty_inactive_list_flag;
 
@@ -2960,6 +2965,7 @@ sector_t raid5_compute_sector(struct r5conf *conf, sector_t r_sector,
 	return new_sector;
 }
 
+/* JYW: 根据sh->sector，反推MD的sector号 */
 sector_t raid5_compute_blocknr(struct stripe_head *sh, int i, int previous)
 {
 	struct r5conf *conf = sh->raid_conf;
@@ -3250,13 +3256,14 @@ schedule_reconstruction(struct stripe_head *sh, struct stripe_head_state *s,
  * toread/towrite point to the first in a chain.
  * The bi_next chain must be in order.
  */
+/* JYW: 将bio请求添加到sh中 */
 static int add_stripe_bio(struct stripe_head *sh, struct bio *bi, int dd_idx,
 			  int forwrite, int previous)
 {
 	struct bio **bip;
 	struct r5conf *conf = sh->raid_conf;
 	int firstwrite=0;
-
+	/* JYW: 将md的bio请求添加到对应的条带 */
 	pr_debug("adding bi b#%llu to stripe s#%llu\n",
 		(unsigned long long)bi->bi_iter.bi_sector,
 		(unsigned long long)sh->sector);
@@ -3330,6 +3337,7 @@ static int add_stripe_bio(struct stripe_head *sh, struct bio *bi, int dd_idx,
 			if (bio_end_sector(bi) >= sector)
 				sector = bio_end_sector(bi);
 		}
+		/* JYW: 确认请求是否覆盖了4KB */
 		if (sector >= sh->dev[dd_idx].sector + STRIPE_SECTORS)
 			if (!test_and_set_bit(R5_OVERWRITE, &sh->dev[dd_idx].flags))
 				sh->overwrite_disks++;
@@ -3833,6 +3841,7 @@ returnbi:
 					bio_endio(wbi);
 					wbi = wbi2;
 				}
+				/* JYW: 对阵列写数据后，将内存中的对应bitmap位图清零 */
 				md_bitmap_endwrite(conf->mddev->bitmap, sh->sector,
 						   STRIPE_SECTORS,
 						   !test_bit(STRIPE_DEGRADED, &sh->state),
@@ -5692,12 +5701,13 @@ static bool raid5_make_request(struct mddev *mddev, struct bio * bi)
 		md_write_end(mddev);
 		return true;
 	}
-	/* JYW: 获取bio请求的逻辑扇区号 */
+	/* JYW: 获取md bio请求的逻辑扇区号 */
 	logical_sector = bi->bi_iter.bi_sector & ~((sector_t)STRIPE_SECTORS-1);
 	last_sector = bio_end_sector(bi);
 	bi->bi_next = NULL;
 
 	prepare_to_wait(&conf->wait_for_overlap, &w, TASK_UNINTERRUPTIBLE);
+	/* JYW: 按实现条带大小(4KB)进行拆分 */
 	for (;logical_sector < last_sector; logical_sector += STRIPE_SECTORS) {
 		int previous;
 		int seq;
@@ -5777,7 +5787,7 @@ static bool raid5_make_request(struct mddev *mddev, struct bio * bi)
 				raid5_release_stripe(sh);
 				goto retry;
 			}
-
+			/* JYW: add_stripe_bio就是将bio添加到stripe_head中 */
 			if (test_bit(STRIPE_EXPANDING, &sh->state) ||
 			    !add_stripe_bio(sh, bi, dd_idx, rw, previous)) {
 				/* Stripe is busy expanding or
@@ -7066,7 +7076,7 @@ static struct r5conf *setup_conf(struct mddev *mddev)
 	spin_lock_init(conf->hash_locks);
 	for (i = 1; i < NR_STRIPE_HASH_LOCKS; i++)
 		spin_lock_init(conf->hash_locks + i);
-
+	/* JYW: 初始化inactive_list链表 */
 	for (i = 0; i < NR_STRIPE_HASH_LOCKS; i++)
 		INIT_LIST_HEAD(conf->inactive_list + i);
 

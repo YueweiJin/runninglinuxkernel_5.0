@@ -56,7 +56,7 @@ struct md_rdev {
 	 */
 	struct block_device *meta_bdev;
 	struct block_device *bdev;	/* block device handle */
-
+	/* JYW: sb_page指向存放超级块的内存页面 */
 	struct page	*sb_page, *bb_page;
 	int		sb_loaded;
 	__u64		sb_events;
