@@ -145,7 +145,7 @@ static struct virtqueue *setup_vq(struct virtio_pci_device *vp_dev,
 		return ERR_PTR(-ENOMEM);
 
 	q_pfn = virtqueue_get_desc_addr(vq) >> VIRTIO_PCI_QUEUE_ADDR_SHIFT;
-	if (q_pfn >> 32) {
+	if (q_pfn >> 32) {call
 		dev_err(&vp_dev->pci_dev->dev,
 			"platform bug: legacy virtio-mmio must not be used with RAM above 0x%llxGB\n",
 			0x1ULL << (32 + PAGE_SHIFT - 30));

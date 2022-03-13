@@ -428,6 +428,7 @@ const char *bond_slave_link_status(s8 link)
  * It'd be nice if there was a good way to tell if a driver supports
  * netif_carrier, but there really isn't.
  */
+/* JYW: 获取MII的link状态 */
 static int bond_check_dev_link(struct bonding *bond,
 			       struct net_device *slave_dev, int reporting)
 {
@@ -2298,7 +2299,7 @@ static void bond_mii_monitor(struct work_struct *work)
 	unsigned long delay;
 	struct slave *slave;
 	struct list_head *iter;
-
+	/* JYW: 将毫秒单位参数转换为jiffies值 */
 	delay = msecs_to_jiffies(bond->params.miimon);
 
 	if (!bond_has_slaves(bond))
@@ -3366,7 +3367,7 @@ static int bond_open(struct net_device *bond_dev)
 		if (bond->params.tlb_dynamic_lb || BOND_MODE(bond) == BOND_MODE_ALB)
 			queue_delayed_work(bond->wq, &bond->alb_work, 0);
 	}
-
+	/* JYW: 如果设置了miimon参数，则会轮询link状态 */
 	if (bond->params.miimon)  /* link check interval, in milliseconds. */
 		queue_delayed_work(bond->wq, &bond->mii_work, 0);
 

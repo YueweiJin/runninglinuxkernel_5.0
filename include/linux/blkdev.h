@@ -397,7 +397,11 @@ struct request_queue {
 
 	struct blk_queue_stats	*stats;
 	struct rq_qos		*rq_qos;
-
+    /* JYW:
+     *  blk : blk_mq_make_request (from : blk_mq_init_allocated_queue)
+     *  md : md_make_request (from ：md_alloc)
+     *  zram : zram_make_request (from : zram_add)
+     */
 	make_request_fn		*make_request_fn;
 	dma_drain_needed_fn	*dma_drain_needed;
 
@@ -419,6 +423,7 @@ struct request_queue {
 	 * The queue owner gets to use this for whatever they like.
 	 * ll_rw_blk doesn't touch it.
 	 */
+    /* JYW: loop : struct loop_device */
 	void			*queuedata;
 
 	/*
@@ -533,6 +538,7 @@ struct request_queue {
 
 	struct list_head	requeue_list;
 	spinlock_t		requeue_lock;
+    /* JYW: blk_mq_requeue_work (from: blk_mq_init_allocated_queue) */
 	struct delayed_work	requeue_work;
 
 	struct mutex		sysfs_lock;
@@ -1119,6 +1125,7 @@ extern void blk_set_queue_dying(struct request_queue *);
  * the plug list when the task sleeps by itself. For details, please see
  * schedule() where blk_schedule_flush_plug() is called.
  */
+/* JYW: IO请求在被添加到调度队列中时会先经过Plug List一层，然后经过unplug操作才会被添加到调度队列中，这整个过程被称为蓄流和泄流 */
 struct blk_plug {
 	struct list_head mq_list; /* blk-mq requests */
 	struct list_head cb_list; /* md requires an unplug callback */
@@ -1132,6 +1139,7 @@ struct blk_plug_cb;
 typedef void (*blk_plug_cb_fn)(struct blk_plug_cb *, bool);
 struct blk_plug_cb {
 	struct list_head list;
+	/* JYW: raid5：raid5_unplug */
 	blk_plug_cb_fn callback;
 	void *data;
 };

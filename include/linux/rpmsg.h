@@ -47,12 +47,16 @@ struct rpmsg_channel_info {
  * @ept: the rpmsg endpoint of this channel
  * @announce: if set, rpmsg will announce the creation/removal of this channel
  */
+/* JYW: 挂在总线上的设备 */
 struct rpmsg_device {
 	struct device dev;
+    /* JYW: 设备的名称 */
 	struct rpmsg_device_id id;
 	char *driver_override;
+    /* JYW: 设备的本地地址 */
 	u32 src;
 	u32 dst;
+    /* JYW: 设备关联的端点 */
 	struct rpmsg_endpoint *ept;
 	bool announce;
 

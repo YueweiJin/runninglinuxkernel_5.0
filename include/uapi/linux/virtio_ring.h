@@ -118,13 +118,16 @@ struct vring_used {
 	struct vring_used_elem ring[];
 };
 
+/* JYW: 包含数据传输的所有要素，包括Descriptor Table，Avail Ring和Used Ring */
 struct vring {
+    /* JYW: VRing的队列深度，表示一个VRing有多少个buffer */
 	unsigned int num;
 
+    /* JYW：desc 用于存储一些关联的描述符，每个描述符记录一个对 buffer 的描述 */
 	struct vring_desc *desc;
-
+    /* JYW: 用于 guest 端表示当前有哪些描述符是可用的 */
 	struct vring_avail *avail;
-
+    /* JYW: 而 used ring 则表示 host 端哪些描述符已经被使用 */
 	struct vring_used *used;
 };
 
@@ -161,21 +164,33 @@ struct vring {
  */
 /* We publish the used event index at the end of the available ring, and vice
  * versa. They are at the end for backwards compatibility. */
+
+/* JYW: 设置avail_event，用来通知宿主os有新命令需要处理。
+ * 宿主os完后产生中断，处理完成之后设置used_event，
+ * 表示数据处理了，这样宿主os才会有数据的时候继续发生中断。
+ */
+
+/* JYW: 找到used_event地址，用来通知宿主os，读取到哪里了 */
 #define vring_used_event(vr) ((vr)->avail->ring[(vr)->num])
+/* JYW：找到avail_event地址，用来通知宿主os，写到哪里了 */
 #define vring_avail_event(vr) (*(__virtio16 *)&(vr)->used->ring[(vr)->num])
 
+/* JYW: vring结构体成员的初始化 */
 static inline void vring_init(struct vring *vr, unsigned int num, void *p,
 			      unsigned long align)
 {
 	vr->num = num;
 	vr->desc = p;
 	vr->avail = p + num*sizeof(struct vring_desc);
+    /* JYW: 在vring_avail结尾有个16字位的used_event */
 	vr->used = (void *)(((uintptr_t)&vr->avail->ring[num] + sizeof(__virtio16)
 		+ align-1) & ~(align - 1));
 }
 
+/* JYW: vring管理的size大小 */
 static inline unsigned vring_size(unsigned int num, unsigned long align)
 {
+    /* JYW: 为什么是3？ 在vring_avail结尾有个16字位的used_event，之后放得是vring_used，同样，后面有个16位的avail_event */
 	return ((sizeof(struct vring_desc) * num + sizeof(__virtio16) * (3 + num)
 		 + align - 1) & ~(align - 1))
 		+ sizeof(__virtio16) * 3 + sizeof(struct vring_used_elem) * num;

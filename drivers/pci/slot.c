@@ -194,6 +194,7 @@ static int rename_slot(struct pci_slot *slot, const char *name)
 	return result;
 }
 
+/* JYW: 分配一个slot号 */
 void pci_dev_assign_slot(struct pci_dev *dev)
 {
 	struct pci_slot *slot;
@@ -257,6 +258,7 @@ static struct pci_slot *get_slot(struct pci_bus *parent, int slot_nr)
  * %struct pci_bus and bb is the bus number. In other words, the devfn of
  * the 'placeholder' slot will not be displayed.
  */
+/* JYW: 创建一个/sys/bus/pci/slots/<name> */
 struct pci_slot *pci_create_slot(struct pci_bus *parent, int slot_nr,
 				 const char *name,
 				 struct hotplug_slot *hotplug)

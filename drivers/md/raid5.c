@@ -76,6 +76,7 @@ MODULE_PARM_DESC(devices_handle_discard_safely,
 		 "Set to Y if all devices in each array reliably return zeroes on reads from discarded regions");
 static struct workqueue_struct *raid5_wq;
 
+/* JYW: 根据sector哈希值找到哈希链表 */
 static inline struct hlist_head *stripe_hash(struct r5conf *conf, sector_t sect)
 {
 	int hash = (sect >> STRIPE_SHIFT) & HASH_MASK;
@@ -218,6 +219,7 @@ static void raid5_wakeup_stripe_thread(struct stripe_head *sh)
 	}
 }
 
+/* JYW: 释放条带 */
 static void do_release_stripe(struct r5conf *conf, struct stripe_head *sh,
 			      struct list_head *temp_inactive_list)
 {
@@ -245,22 +247,26 @@ static void do_release_stripe(struct r5conf *conf, struct stripe_head *sh,
 			r5c_make_stripe_write_out(sh);
 		set_bit(STRIPE_HANDLE, &sh->state);
 	}
-
+	/* JYW: 如果sh需要处理 */
 	if (test_bit(STRIPE_HANDLE, &sh->state)) {
 		if (test_bit(STRIPE_DELAYED, &sh->state) &&
 		    !test_bit(STRIPE_PREREAD_ACTIVE, &sh->state))
+			/* JYW: 延迟处理，加入delayed_list */
 			list_add_tail(&sh->lru, &conf->delayed_list);
 		else if (test_bit(STRIPE_BIT_DELAY, &sh->state) &&
 			   sh->bm_seq - conf->seq_write > 0)
 			list_add_tail(&sh->lru, &conf->bitmap_list);
 		else {
+			/* JYW: 清除延迟处理状态 */
 			clear_bit(STRIPE_DELAYED, &sh->state);
+			/* JYW: 清除等待bitmap处理状态 */
 			clear_bit(STRIPE_BIT_DELAY, &sh->state);
 			if (conf->worker_cnt_per_group == 0) {
 				if (stripe_is_lowprio(sh))
 					list_add_tail(&sh->lru,
 							&conf->loprio_list);
 				else
+					/* JYW: 加入handle_list */
 					list_add_tail(&sh->lru,
 							&conf->handle_list);
 			} else {
@@ -269,15 +275,18 @@ static void do_release_stripe(struct r5conf *conf, struct stripe_head *sh,
 			}
 		}
 		md_wakeup_thread(conf->mddev->thread);
-	} else {
+	} else { /* JYW: 不需要处理，则回收 */
 		BUG_ON(stripe_operations_active(sh));
 		if (test_and_clear_bit(STRIPE_PREREAD_ACTIVE, &sh->state))
 			if (atomic_dec_return(&conf->preread_active_stripes)
 			    < IO_THRESHOLD)
+				/* JYW: 唤醒守护进程 */
 				md_wakeup_thread(conf->mddev->thread);
+		/* JYW: 将活跃条带数减1 */
 		atomic_dec(&conf->active_stripes);
 		if (!test_bit(STRIPE_EXPANDING, &sh->state)) {
 			if (!r5c_is_writeback(conf->log))
+				/* JYW: 加入非活跃list */
 				list_add_tail(&sh->lru, temp_inactive_list);
 			else {
 				WARN_ON(test_bit(R5_InJournal, &sh->dev[sh->pd_idx].flags));
@@ -303,6 +312,7 @@ static void do_release_stripe(struct r5conf *conf, struct stripe_head *sh,
 	}
 }
 
+/* JYW: 回收sh */
 static void __release_stripe(struct r5conf *conf, struct stripe_head *sh,
 			     struct list_head *temp_inactive_list)
 {
@@ -342,6 +352,7 @@ static void release_inactive_stripe_list(struct r5conf *conf,
 			if (list_empty(conf->inactive_list + hash) &&
 			    !list_empty(list))
 				atomic_dec(&conf->empty_inactive_list_nr);
+			/* JYW: 将list链表合并到inactive_list链表 */
 			list_splice_tail_init(list, conf->inactive_list + hash);
 			do_wakeup = true;
 			spin_unlock_irqrestore(conf->hash_locks + hash, flags);
@@ -349,7 +360,7 @@ static void release_inactive_stripe_list(struct r5conf *conf,
 		size--;
 		hash--;
 	}
-
+	/* JYW: 唤醒 */
 	if (do_wakeup) {
 		wake_up(&conf->wait_for_stripe);
 		if (atomic_read(&conf->active_stripes) == 0)
@@ -413,8 +424,10 @@ slow_path:
 	if (atomic_dec_and_lock_irqsave(&sh->count, &conf->device_lock, flags)) {
 		INIT_LIST_HEAD(&list);
 		hash = sh->hash_lock_index;
+		/* JYW: 根据不同的stat，将sh放入不同的链表 */
 		do_release_stripe(conf, sh, &list);
 		spin_unlock_irqrestore(&conf->device_lock, flags);
+		/* JYW: 整理inactive_stripe_list */
 		release_inactive_stripe_list(conf, &list, hash);
 	}
 }
@@ -438,17 +451,20 @@ static inline void insert_hash(struct r5conf *conf, struct stripe_head *sh)
 }
 
 /* find an idle stripe, make sure it is unhashed, and return it. */
+/* JYW: 若stripe_head哈希表中找不到对应sector的stripe_head，则找一个空的 */
 static struct stripe_head *get_free_stripe(struct r5conf *conf, int hash)
 {
 	struct stripe_head *sh = NULL;
 	struct list_head *first;
-
+	/* JYW: 正常应该是在inactive_list的链表中，如果没有则返回空 */
 	if (list_empty(conf->inactive_list + hash))
 		goto out;
+	/* JYW: 如果在inactive_list链表，则从LRU中摘取 */
 	first = (conf->inactive_list + hash)->next;
 	sh = list_entry(first, struct stripe_head, lru);
 	list_del_init(first);
 	remove_hash(sh);
+	/* JYW: 增加活跃条带的计数 */
 	atomic_inc(&conf->active_stripes);
 	BUG_ON(hash != sh->hash_lock_index);
 	if (list_empty(conf->inactive_list + hash))
@@ -494,6 +510,7 @@ static int grow_buffers(struct stripe_head *sh, gfp_t gfp)
 static void stripe_set_idx(sector_t stripe, struct r5conf *conf, int previous,
 			    struct stripe_head *sh);
 
+/* JYW: 初始化stripe_head结构体*/
 static void init_stripe(struct stripe_head *sh, sector_t sector, int previous)
 {
 	struct r5conf *conf = sh->raid_conf;
@@ -509,11 +526,13 @@ static void init_stripe(struct stripe_head *sh, sector_t sector, int previous)
 retry:
 	seq = read_seqcount_begin(&conf->gen_lock);
 	sh->generation = conf->generation - previous;
+	/* JYW: 磁盘的数量 */
 	sh->disks = previous ? conf->previous_raid_disks : conf->raid_disks;
+	/* JYW: 记录该条带对应的扇区偏移量 */
 	sh->sector = sector;
 	stripe_set_idx(sector, conf, previous, sh);
 	sh->state = 0;
-
+	/* JYW: 对每一个设备缓冲区进行操作 */
 	for (i = sh->disks; i--; ) {
 		struct r5dev *dev = &sh->dev[i];
 
@@ -526,16 +545,19 @@ retry:
 			WARN_ON(1);
 		}
 		dev->flags = 0;
+		/* JYW: 根据sh->sector，反推对应MD的sector号 */
 		dev->sector = raid5_compute_blocknr(sh, i, previous);
 	}
 	if (read_seqcount_retry(&conf->gen_lock, seq))
 		goto retry;
 	sh->overwrite_disks = 0;
+	/* JYW：添加到哈希表上 */
 	insert_hash(conf, sh);
 	sh->cpu = smp_processor_id();
 	set_bit(STRIPE_BATCH_READY, &sh->state);
 }
 
+/* JYW: 根据sector从哈希表中找到stripe_head结构体 */
 static struct stripe_head *__find_stripe(struct r5conf *conf, sector_t sector,
 					 short generation)
 {
@@ -631,11 +653,16 @@ static int has_failed(struct r5conf *conf)
 	return 0;
 }
 
+/*
+ * JYW: 找到sector对应的stripe_head
+ * sector：具体盘的请求起始扇区号
+ */
 struct stripe_head *
 raid5_get_active_stripe(struct r5conf *conf, sector_t sector,
 			int previous, int noblock, int noquiesce)
 {
 	struct stripe_head *sh;
+	/* JYW: 针对某盘的sector计算hash值 */
 	int hash = stripe_hash_locks_hash(sector);
 	int inc_empty_inactive_list_flag;
 
@@ -647,10 +674,13 @@ raid5_get_active_stripe(struct r5conf *conf, sector_t sector,
 		wait_event_lock_irq(conf->wait_for_quiescent,
 				    conf->quiesce == 0 || noquiesce,
 				    *(conf->hash_locks + hash));
+		/* JYW: 根据sector从哈希表中找到stripe_head结构体 */
 		sh = __find_stripe(conf, sector, conf->generation - previous);
 		if (!sh) {
 			if (!test_bit(R5_INACTIVE_BLOCKED, &conf->cache_state)) {
+				/* JYW: 若stripe_head哈希表中找不到对应sector的stripe_head，则找一个空的 */
 				sh = get_free_stripe(conf, hash);
+				/* JYW: 如果还是找不到，则置位R5_ALLOC_MORE标记 */
 				if (!sh && !test_bit(R5_DID_ALLOC,
 						     &conf->cache_state))
 					set_bit(R5_ALLOC_MORE,
@@ -664,6 +694,7 @@ raid5_get_active_stripe(struct r5conf *conf, sector_t sector,
 				set_bit(R5_INACTIVE_BLOCKED,
 					&conf->cache_state);
 				r5l_wake_reclaim(conf->log, 0);
+				/* JYW: 等待直到满足条件： inactive_list有条带，活跃条带小于3/4或R5_INACTIVE_BLOCKED未置位 */
 				wait_event_lock_irq(
 					conf->wait_for_stripe,
 					!list_empty(conf->inactive_list + hash) &&
@@ -675,6 +706,7 @@ raid5_get_active_stripe(struct r5conf *conf, sector_t sector,
 				clear_bit(R5_INACTIVE_BLOCKED,
 					  &conf->cache_state);
 			} else {
+				/* JYW：如果是空的，需要先初始化 */
 				init_stripe(sh, sector, previous);
 				atomic_inc(&sh->count);
 			}
@@ -981,6 +1013,7 @@ raid5_end_read_request(struct bio *bi);
 static void
 raid5_end_write_request(struct bio *bi);
 
+/* JYW: 真正下发io请求到磁盘 */
 static void ops_run_io(struct stripe_head *sh, struct stripe_head_state *s)
 {
 	struct r5conf *conf = sh->raid_conf;
@@ -995,7 +1028,7 @@ static void ops_run_io(struct stripe_head *sh, struct stripe_head_state *s)
 		return;
 
 	should_defer = conf->batch_bio_dispatch && conf->group_cnt;
-
+	/* JYW: 分别处理每个缓冲区 */
 	for (i = disks; i--; ) {
 		int op, op_flags = 0;
 		int replace_only = 0;
@@ -1003,6 +1036,7 @@ static void ops_run_io(struct stripe_head *sh, struct stripe_head_state *s)
 		struct md_rdev *rdev, *rrdev = NULL;
 
 		sh = head_sh;
+		/* JYW: 如果想要写，则操作为REQ_OP_WRITE */
 		if (test_and_clear_bit(R5_Wantwrite, &sh->dev[i].flags)) {
 			op = REQ_OP_WRITE;
 			if (test_and_clear_bit(R5_WantFUA, &sh->dev[i].flags))
@@ -1027,6 +1061,7 @@ again:
 		rcu_read_lock();
 		rrdev = rcu_dereference(conf->disks[i].replacement);
 		smp_mb(); /* Ensure that if rrdev is NULL, rdev won't be */
+		/* JYW: 获取对应idx的数据盘的dev */
 		rdev = rcu_dereference(conf->disks[i].rdev);
 		if (!rdev) {
 			rdev = rrdev;
@@ -1099,6 +1134,7 @@ again:
 			set_bit(STRIPE_IO_STARTED, &sh->state);
 
 			bio_set_dev(bi, rdev->bdev);
+			/* JYW: 设置IO回调函数，即当IO执行完后会调用该函数 */
 			bio_set_op_attrs(bi, op, op_flags);
 			bi->bi_end_io = op_is_write(op)
 				? raid5_end_write_request
@@ -1156,6 +1192,7 @@ again:
 			if (should_defer && op_is_write(op))
 				bio_list_add(&pending_bios, bi);
 			else
+				/* JYW: 下发请求到磁盘上 */
 				generic_make_request(bi);
 		}
 		if (rrdev) {
@@ -1743,6 +1780,7 @@ ops_run_biodrain(struct stripe_head *sh, struct dma_async_tx_descriptor *tx)
 		struct bio *chosen;
 
 		sh = head_sh;
+		/* JYW: 选取需要操作的缓冲区，并清除该标记 */
 		if (test_and_clear_bit(R5_Wantdrain, &head_sh->dev[i].flags)) {
 			struct bio *wbi;
 
@@ -1754,10 +1792,12 @@ again:
 			 */
 			clear_bit(R5_InJournal, &dev->flags);
 			spin_lock_irq(&sh->stripe_lock);
+			/* JYW: 将写请求从dev的towrite链表删除 */
 			chosen = dev->towrite;
 			dev->towrite = NULL;
 			sh->overwrite_disks = 0;
 			BUG_ON(dev->written);
+			/* JYW: 将写请求添加到written链表中，表示已经写了，这里代表写到了缓冲区中 */
 			wbi = dev->written = chosen;
 			spin_unlock_irq(&sh->stripe_lock);
 			WARN_ON(dev->page != dev->orig_page);
@@ -1771,6 +1811,7 @@ again:
 				if (bio_op(wbi) == REQ_OP_DISCARD)
 					set_bit(R5_Discard, &dev->flags);
 				else {
+					/* JYW: 通过DMA描述符，将请求的page数据copy到dev的page中 */
 					tx = async_copy_data(1, wbi, &dev->page,
 							     dev->sector, tx, sh,
 							     r5c_is_writeback(conf->log));
@@ -2071,6 +2112,7 @@ static void raid_run_ops(struct stripe_head *sh, unsigned long ops_request)
 
 	cpu = get_cpu();
 	percpu = per_cpu_ptr(conf->percpu, cpu);
+	/* JYW:这是将dev的page数据copy到bio的page中 */
 	if (test_bit(STRIPE_OP_BIOFILL, &ops_request)) {
 		ops_run_biofill(sh);
 		overlap_clear++;
@@ -2099,12 +2141,12 @@ static void raid_run_ops(struct stripe_head *sh, unsigned long ops_request)
 
 	if (test_bit(STRIPE_OP_PARTIAL_PARITY, &ops_request))
 		tx = ops_run_partial_parity(sh, percpu, tx);
-
+	/* JYW: 将bio的page数据copy到dev的page中 */
 	if (test_bit(STRIPE_OP_BIODRAIN, &ops_request)) {
 		tx = ops_run_biodrain(sh, tx);
 		overlap_clear++;
 	}
-
+	/* JYW: 重构该sh，进入该分支 */
 	if (test_bit(STRIPE_OP_RECONSTRUCT, &ops_request)) {
 		if (level < 6)
 			ops_run_reconstruct5(sh, percpu, tx);
@@ -2472,6 +2514,7 @@ static void shrink_stripes(struct r5conf *conf)
 	conf->slab_cache = NULL;
 }
 
+/* JYW: 当读请求结束后会回调该接口 */
 static void raid5_end_read_request(struct bio * bi)
 {
 	struct stripe_head *sh = bi->bi_private;
@@ -2481,6 +2524,7 @@ static void raid5_end_read_request(struct bio * bi)
 	struct md_rdev *rdev = NULL;
 	sector_t s;
 
+	/* JYW: 找到请求所属的盘号 */
 	for (i=0 ; i<disks; i++)
 		if (bi == &sh->dev[i].req)
 			break;
@@ -2508,6 +2552,7 @@ static void raid5_end_read_request(struct bio * bi)
 	else
 		s = sh->sector + rdev->data_offset;
 	if (!bi->bi_status) {
+		/* JYW: 对缓冲区设置为uptodate，表示其数据已经是最新的了 */
 		set_bit(R5_UPTODATE, &sh->dev[i].flags);
 		if (test_bit(R5_ReadError, &sh->dev[i].flags)) {
 			/* Note that this cannot happen on a
@@ -2589,7 +2634,9 @@ static void raid5_end_read_request(struct bio * bi)
 	}
 	rdev_dec_pending(rdev, conf->mddev);
 	bio_reset(bi);
+	/* JYW: 对缓冲区解锁 */
 	clear_bit(R5_LOCKED, &sh->dev[i].flags);
+	/* JYW: 设置sh需要处理标志 */
 	set_bit(STRIPE_HANDLE, &sh->state);
 	raid5_release_stripe(sh);
 }
@@ -2715,6 +2762,7 @@ static void raid5_error(struct mddev *mddev, struct md_rdev *rdev)
  * Input: a 'big' sector number,
  * Output: index of the data and parity disk, and the sector # in them.
  */
+/* JYW: 计算落到哪个盘的哪个扇区 */
 sector_t raid5_compute_sector(struct r5conf *conf, sector_t r_sector,
 			      int previous, int *dd_idx,
 			      struct stripe_head *sh)
@@ -2917,6 +2965,7 @@ sector_t raid5_compute_sector(struct r5conf *conf, sector_t r_sector,
 	return new_sector;
 }
 
+/* JYW: 根据sh->sector，反推MD的sector号 */
 sector_t raid5_compute_blocknr(struct stripe_head *sh, int i, int previous)
 {
 	struct r5conf *conf = sh->raid_conf;
@@ -3207,13 +3256,14 @@ schedule_reconstruction(struct stripe_head *sh, struct stripe_head_state *s,
  * toread/towrite point to the first in a chain.
  * The bi_next chain must be in order.
  */
+/* JYW: 将bio请求添加到sh中 */
 static int add_stripe_bio(struct stripe_head *sh, struct bio *bi, int dd_idx,
 			  int forwrite, int previous)
 {
 	struct bio **bip;
 	struct r5conf *conf = sh->raid_conf;
 	int firstwrite=0;
-
+	/* JYW: 将md的bio请求添加到对应的条带 */
 	pr_debug("adding bi b#%llu to stripe s#%llu\n",
 		(unsigned long long)bi->bi_iter.bi_sector,
 		(unsigned long long)sh->sector);
@@ -3287,6 +3337,7 @@ static int add_stripe_bio(struct stripe_head *sh, struct bio *bi, int dd_idx,
 			if (bio_end_sector(bi) >= sector)
 				sector = bio_end_sector(bi);
 		}
+		/* JYW: 确认请求是否覆盖了4KB */
 		if (sector >= sh->dev[dd_idx].sector + STRIPE_SECTORS)
 			if (!test_and_set_bit(R5_OVERWRITE, &sh->dev[dd_idx].flags))
 				sh->overwrite_disks++;
@@ -3752,6 +3803,7 @@ static void break_stripe_batch_list(struct stripe_head *head_sh,
  * Note that if we 'wrote' to a failed drive, it will be UPTODATE, but
  * never LOCKED, so we don't need to test 'failed' directly.
  */
+/* JYW: BIO结束后，清理条带 */
 static void handle_stripe_clean_event(struct r5conf *conf,
 	struct stripe_head *sh, int disks)
 {
@@ -3789,6 +3841,7 @@ returnbi:
 					bio_endio(wbi);
 					wbi = wbi2;
 				}
+				/* JYW: 对阵列写数据后，将内存中的对应bitmap位图清零 */
 				md_bitmap_endwrite(conf->mddev->bitmap, sh->sector,
 						   STRIPE_SECTORS,
 						   !test_bit(STRIPE_DEGRADED, &sh->state),
@@ -3895,18 +3948,21 @@ static int handle_stripe_dirtying(struct r5conf *conf,
 	} else for (i = disks; i--; ) {
 		/* would I have to read this buffer for read_modify_write */
 		struct r5dev *dev = &sh->dev[i];
+		/* JYW: 采用读改写 */
 		if (((dev->towrite && !delay_towrite(conf, dev, s)) ||
 		     i == sh->pd_idx || i == sh->qd_idx ||
 		     test_bit(R5_InJournal, &dev->flags)) &&
 		    !test_bit(R5_LOCKED, &dev->flags) &&
 		    !(uptodate_for_rmw(dev) ||
 		      test_bit(R5_Wantcompute, &dev->flags))) {
+			/* JYW: 如果数据是正确的 */
 			if (test_bit(R5_Insync, &dev->flags))
 				rmw++;
-			else
+			else·
 				rmw += 2*disks;  /* cannot read it */
 		}
 		/* Would I have to read this buffer for reconstruct_write */
+		/* JYW: 采用重构写 */
 		if (!test_bit(R5_OVERWRITE, &dev->flags) &&
 		    i != sh->pd_idx && i != sh->qd_idx &&
 		    !test_bit(R5_LOCKED, &dev->flags) &&
@@ -3922,6 +3978,7 @@ static int handle_stripe_dirtying(struct r5conf *conf,
 	pr_debug("for sector %llu state 0x%lx, rmw=%d rcw=%d\n",
 		 (unsigned long long)sh->sector, sh->state, rmw, rcw);
 	set_bit(STRIPE_HANDLE, &sh->state);
+	/* JYW: 采用rmw方式需要读的盘数少，则使用rmw方式处理写请求 */
 	if ((rmw < rcw || (rmw == rcw && conf->rmw_level == PARITY_PREFER_RMW)) && rmw > 0) {
 		/* prefer read-modify-write, but need to get some data */
 		if (conf->mddev->queue)
@@ -3981,6 +4038,7 @@ static int handle_stripe_dirtying(struct r5conf *conf,
 			}
 		}
 	}
+	/* JYW: 采用rcw方式需要读的盘数少，则用rcw */
 	if ((rcw < rmw || (rcw == rmw && conf->rmw_level != PARITY_PREFER_RMW)) && rcw > 0) {
 		/* want reconstruct write, but need to get some data */
 		int qread =0;
@@ -4386,6 +4444,7 @@ static void analyse_stripe(struct stripe_head *sh, struct stripe_head_state *s)
 
 	/* Now to look around and see what can be done */
 	rcu_read_lock();
+	/* JYW: 对每个磁盘逐个分析 */
 	for (i=disks; i--; ) {
 		struct md_rdev *rdev;
 		sector_t first_bad;
@@ -4402,29 +4461,38 @@ static void analyse_stripe(struct stripe_head *sh, struct stripe_head_state *s)
 		 * new wantfill requests are only permitted while
 		 * ops_complete_biofill is guaranteed to be inactive
 		 */
+		/* JYW: 如果这个缓冲区上有读请求，并且这个缓冲区中的数据已经是最新的了，那么则直接从缓冲区中读就可以了，没必要在从磁盘上读了，这样减少了IO时间 */
 		if (test_bit(R5_UPTODATE, &dev->flags) && dev->toread &&
 		    !test_bit(STRIPE_BIOFILL_RUN, &sh->state))
+			/* JYW: 为缓冲区设置需要将dev的page数据copy到bio的page中的标志 */
 			set_bit(R5_Wantfill, &dev->flags);
 
 		/* now count some things */
+		/* JYW: 记录上锁的缓冲区数量 */
 		if (test_bit(R5_LOCKED, &dev->flags))
 			s->locked++;
+		/* JYW: 记录数据最新的缓冲区数 */
 		if (test_bit(R5_UPTODATE, &dev->flags))
 			s->uptodate++;
+		/* JYW: 记录需要计算的缓冲区数 */
 		if (test_bit(R5_Wantcompute, &dev->flags)) {
 			s->compute++;
 			BUG_ON(s->compute > 2);
 		}
-
+		/* JYW: 记录需要填充的缓冲区数 */
 		if (test_bit(R5_Wantfill, &dev->flags))
 			s->to_fill++;
+		/* JYW: 记录未完成的读请求数 */
 		else if (dev->toread)
 			s->to_read++;
+		/* JYW: 记录未完成的写请求数 */
 		if (dev->towrite) {
 			s->to_write++;
+			/* JYW: 记录满写请求的个数，即写的范围覆盖整个缓冲区 */
 			if (!test_bit(R5_OVERWRITE, &dev->flags))
 				s->non_overwrite++;
 		}
+		/* JYW: 记录已经完成的写请求的个数 */
 		if (dev->written)
 			s->written++;
 		/* Prefer to use the replacement for reads, but only
@@ -4663,6 +4731,7 @@ static void break_stripe_batch_list(struct stripe_head *head_sh,
 		wake_up(&head_sh->raid_conf->wait_for_overlap);
 }
 
+/* JYW: 处理条带 */
 static void handle_stripe(struct stripe_head *sh)
 {
 	struct stripe_head_state s;
@@ -4671,8 +4740,9 @@ static void handle_stripe(struct stripe_head *sh)
 	int prexor;
 	int disks = sh->disks;
 	struct r5dev *pdev, *qdev;
-
+	/* JYW: 已经在处理了，故清除STRIPE_HANDLE标志位 */
 	clear_bit(STRIPE_HANDLE, &sh->state);
+	/* JYW: 设置正在处理 */
 	if (test_and_set_bit_lock(STRIPE_ACTIVE, &sh->state)) {
 		/* already being handled, ensure it gets handled
 		 * again when current action finishes */
@@ -4687,7 +4757,7 @@ static void handle_stripe(struct stripe_head *sh)
 
 	if (test_and_clear_bit(STRIPE_BATCH_ERR, &sh->state))
 		break_stripe_batch_list(sh, 0);
-
+	/* JYW: 如果是同步请求 */
 	if (test_bit(STRIPE_SYNC_REQUESTED, &sh->state) && !sh->batch_head) {
 		spin_lock(&sh->stripe_lock);
 		/*
@@ -4704,6 +4774,7 @@ static void handle_stripe(struct stripe_head *sh)
 		}
 		spin_unlock(&sh->stripe_lock);
 	}
+	/* JYW: 清除延迟处理标志 */
 	clear_bit(STRIPE_DELAYED, &sh->state);
 
 	pr_debug("handling stripe %llu, state=%#lx cnt=%d, "
@@ -4711,7 +4782,7 @@ static void handle_stripe(struct stripe_head *sh)
 	       (unsigned long long)sh->sector, sh->state,
 	       atomic_read(&sh->count), sh->pd_idx, sh->qd_idx,
 	       sh->check_state, sh->reconstruct_state);
-
+	/* JYW: 分析条带 */
 	analyse_stripe(sh, &s);
 
 	if (test_bit(STRIPE_LOG_TRAPPED, &sh->state))
@@ -5112,11 +5183,14 @@ static int raid5_congested(struct mddev *mddev, int bits)
 	return 0;
 }
 
+/* JYW: 判断访问区域是否在一个trunk内 */
 static int in_chunk_boundary(struct mddev *mddev, struct bio *bio)
 {
 	struct r5conf *conf = mddev->private;
+	/* JYW: 起始扇区 */
 	sector_t sector = bio->bi_iter.bi_sector;
 	unsigned int chunk_sectors;
+	/* JYW: 扇区总数 */
 	unsigned int bio_sectors = bio_sectors(bio);
 
 	WARN_ON_ONCE(bio->bi_partno);
@@ -5207,6 +5281,7 @@ static int raid5_read_one_chunk(struct mddev *mddev, struct bio *raid_bio)
 	struct md_rdev *rdev;
 	sector_t end_sector;
 
+	/* JYW: 判断访问区域是否在一个trunk内，如果不是则退出 */
 	if (!in_chunk_boundary(mddev, raid_bio)) {
 		pr_debug("%s: non aligned\n", __func__);
 		return 0;
@@ -5226,6 +5301,7 @@ static int raid5_read_one_chunk(struct mddev *mddev, struct bio *raid_bio)
 	/*
 	 *	compute position
 	 */
+	/* JYW: 计算落到哪个盘的哪个扇区 */
 	align_bi->bi_iter.bi_sector =
 		raid5_compute_sector(conf, raid_bio->bi_iter.bi_sector,
 				     0, &dd_idx, NULL);
@@ -5290,6 +5366,7 @@ static int raid5_read_one_chunk(struct mddev *mddev, struct bio *raid_bio)
 	}
 }
 
+/* JYW: 条带对齐读 */
 static struct bio *chunk_aligned_read(struct mddev *mddev, struct bio *raid_bio)
 {
 	struct bio *split;
@@ -5461,6 +5538,7 @@ static void raid5_unplug(struct blk_plug_cb *blk_cb, bool from_schedule)
 static void release_stripe_plug(struct mddev *mddev,
 				struct stripe_head *sh)
 {
+	/* JYW: 创建一个struct blk_plug_cb并添加到plug->cb_list */
 	struct blk_plug_cb *blk_cb = blk_check_plugged(
 		raid5_unplug, mddev,
 		sizeof(struct raid5_plug_cb));
@@ -5470,7 +5548,7 @@ static void release_stripe_plug(struct mddev *mddev,
 		raid5_release_stripe(sh);
 		return;
 	}
-
+	/* JYW: 获取到raid5_plug_cb */
 	cb = container_of(blk_cb, struct raid5_plug_cb, cb);
 
 	if (cb->list.next == NULL) {
@@ -5481,6 +5559,7 @@ static void release_stripe_plug(struct mddev *mddev,
 	}
 
 	if (!test_and_set_bit(STRIPE_ON_UNPLUG_LIST, &sh->state))
+		/* JYW：添加到LRU链表中 */
 		list_add_tail(&sh->lru, &cb->list);
 	else
 		raid5_release_stripe(sh);
@@ -5573,6 +5652,7 @@ static void make_discard_request(struct mddev *mddev, struct bio *bi)
 	bio_endio(bi);
 }
 
+/* JYW: 处理请求 */
 static bool raid5_make_request(struct mddev *mddev, struct bio * bi)
 {
 	struct r5conf *conf = mddev->private;
@@ -5621,12 +5701,13 @@ static bool raid5_make_request(struct mddev *mddev, struct bio * bi)
 		md_write_end(mddev);
 		return true;
 	}
-
+	/* JYW: 获取md bio请求的逻辑扇区号 */
 	logical_sector = bi->bi_iter.bi_sector & ~((sector_t)STRIPE_SECTORS-1);
 	last_sector = bio_end_sector(bi);
 	bi->bi_next = NULL;
 
 	prepare_to_wait(&conf->wait_for_overlap, &w, TASK_UNINTERRUPTIBLE);
+	/* JYW: 按实现条带大小(4KB)进行拆分 */
 	for (;logical_sector < last_sector; logical_sector += STRIPE_SECTORS) {
 		int previous;
 		int seq;
@@ -5664,14 +5745,14 @@ static bool raid5_make_request(struct mddev *mddev, struct bio * bi)
 			}
 			spin_unlock_irq(&conf->device_lock);
 		}
-
+		/* JYW: 计算落到哪个盘的哪个扇区 */
 		new_sector = raid5_compute_sector(conf, logical_sector,
 						  previous,
 						  &dd_idx, NULL);
 		pr_debug("raid456: raid5_make_request, sector %llu logical %llu\n",
 			(unsigned long long)new_sector,
 			(unsigned long long)logical_sector);
-
+		/* JYW: 找到sector对应的stripe_head */
 		sh = raid5_get_active_stripe(conf, new_sector, previous,
 				       (bi->bi_opf & REQ_RAHEAD), 0);
 		if (sh) {
@@ -5706,7 +5787,7 @@ static bool raid5_make_request(struct mddev *mddev, struct bio * bi)
 				raid5_release_stripe(sh);
 				goto retry;
 			}
-
+			/* JYW: add_stripe_bio就是将bio添加到stripe_head中 */
 			if (test_bit(STRIPE_EXPANDING, &sh->state) ||
 			    !add_stripe_bio(sh, bi, dd_idx, rw, previous)) {
 				/* Stripe is busy expanding or
@@ -5724,8 +5805,9 @@ static bool raid5_make_request(struct mddev *mddev, struct bio * bi)
 				/* we only need flush for one stripe */
 				do_flush = false;
 			}
-
+			/* JYW: 将条带设置为需要处理标志 */
 			set_bit(STRIPE_HANDLE, &sh->state);
+			/* JYW: 清除条带的延迟处理标志 */
 			clear_bit(STRIPE_DELAYED, &sh->state);
 			if ((!sh->batch_head || sh == sh->batch_head) &&
 			    (bi->bi_opf & REQ_SYNC) &&
@@ -5734,6 +5816,7 @@ static bool raid5_make_request(struct mddev *mddev, struct bio * bi)
 			release_stripe_plug(mddev, sh);
 		} else {
 			/* cannot get stripe for read-ahead, just give-up */
+			/* JYW: 获取不到条带 */
 			bi->bi_status = BLK_STS_IOERR;
 			break;
 		}
@@ -6993,7 +7076,7 @@ static struct r5conf *setup_conf(struct mddev *mddev)
 	spin_lock_init(conf->hash_locks);
 	for (i = 1; i < NR_STRIPE_HASH_LOCKS; i++)
 		spin_lock_init(conf->hash_locks + i);
-
+	/* JYW: 初始化inactive_list链表 */
 	for (i = 0; i < NR_STRIPE_HASH_LOCKS; i++)
 		INIT_LIST_HEAD(conf->inactive_list + i);
 

@@ -384,6 +384,7 @@ void blk_cleanup_queue(struct request_queue *q)
 }
 EXPORT_SYMBOL(blk_cleanup_queue);
 
+/* JYW: 分配请求队列 */
 struct request_queue *blk_alloc_queue(gfp_t gfp_mask)
 {
 	return blk_alloc_queue_node(gfp_mask, NUMA_NO_NODE);
@@ -1164,6 +1165,7 @@ EXPORT_SYMBOL_GPL(direct_make_request);
  * interfaces; @bio must be presetup and ready for I/O.
  *
  */
+/* JYW: 提交1个bio给blk设备 */
 blk_qc_t submit_bio(struct bio *bio)
 {
 	/*
@@ -1184,7 +1186,7 @@ blk_qc_t submit_bio(struct bio *bio)
 			task_io_account_read(bio->bi_iter.bi_size);
 			count_vm_events(PGPGIN, count);
 		}
-
+		/* JYW: 如果开启了blokdump，则打印进程、pid、操作类型、扇区号、长度信息 */
 		if (unlikely(block_dump)) {
 			char b[BDEVNAME_SIZE];
 			printk(KERN_DEBUG "%s(%d): %s block %Lu on %s (%u sectors)\n",
@@ -1308,6 +1310,7 @@ unsigned int blk_rq_err_bytes(const struct request *rq)
 }
 EXPORT_SYMBOL_GPL(blk_rq_err_bytes);
 
+/* JYW: 更新读写扇区总数 */
 void blk_account_io_completion(struct request *req, unsigned int bytes)
 {
 	if (blk_do_io_stat(req)) {
@@ -1316,11 +1319,13 @@ void blk_account_io_completion(struct request *req, unsigned int bytes)
 
 		part_stat_lock();
 		part = req->part;
+		/* JYW: */
 		part_stat_add(part, sectors[sgrp], bytes >> 9);
 		part_stat_unlock();
 	}
 }
 
+/* JYW: IO完成时更新统计信息 */
 void blk_account_io_done(struct request *req, u64 now)
 {
 	/*
@@ -1336,9 +1341,13 @@ void blk_account_io_done(struct request *req, u64 now)
 		part = req->part;
 
 		update_io_ticks(part, jiffies);
+		/* JYW: 更新IO传输完成计数 */
 		part_stat_inc(part, ios[sgrp]);
+		/* JYW: 更新IO完成总时间 */
 		part_stat_add(part, nsecs[sgrp], now - req->start_time_ns);
+		/* JYW: 更新IO完成所需时间 */
 		part_stat_add(part, time_in_queue, nsecs_to_jiffies64(now - req->start_time_ns));
+		/* JYW: 更新在队列中IO的数量 */
 		part_dec_in_flight(req->q, part, rq_data_dir(req));
 
 		hd_struct_put(part);
@@ -1346,6 +1355,7 @@ void blk_account_io_done(struct request *req, u64 now)
 	}
 }
 
+/* JYW: IO开始时初始化统计信息 */
 void blk_account_io_start(struct request *rq, bool new_io)
 {
 	struct hd_struct *part;
@@ -1355,7 +1365,7 @@ void blk_account_io_start(struct request *rq, bool new_io)
 		return;
 
 	part_stat_lock();
-
+	/* JYW: 如果不是新的IO，则增加合并计数 */
 	if (!new_io) {
 		part = rq->part;
 		part_stat_inc(part, merges[rw]);
@@ -1369,10 +1379,11 @@ void blk_account_io_start(struct request *rq, bool new_io)
 			 * We take a reference on disk->part0 although that
 			 * partition will never be deleted, so we can treat
 			 * it as any other partition.
-			 */
+			 *
 			part = &rq->rq_disk->part0;
 			hd_struct_get(part);
 		}
+		/* JYW: 将一个新的请求加入队列，增加flight计数 */
 		part_inc_in_flight(rq->q, part, rw);
 		rq->part = part;
 	}
@@ -1443,6 +1454,7 @@ bool blk_update_request(struct request *req, blk_status_t error,
 		     !(req->rq_flags & RQF_QUIET)))
 		print_req_error(req, error);
 
+	/* JYW: 更新读写扇区总数 */
 	blk_account_io_completion(req, nr_bytes);
 
 	total_bytes = 0;
@@ -1704,6 +1716,7 @@ EXPORT_SYMBOL(kblockd_mod_delayed_work_on);
  *   plug. By flushing the pending I/O when the process goes to sleep, we avoid
  *   this kind of deadlock.
  */
+/* JYW: 初始化一个进程的plug。作用：保证I/O请求能够被批量下发 */
 void blk_start_plug(struct blk_plug *plug)
 {
 	struct task_struct *tsk = current;
@@ -1735,6 +1748,7 @@ static void flush_plug_callbacks(struct blk_plug *plug, bool from_schedule)
 		list_splice_init(&plug->cb_list, &callbacks);
 
 		while (!list_empty(&callbacks)) {
+			/* JYW: 从callbacks链表摘取blk_plug_cb结构 */
 			struct blk_plug_cb *cb = list_first_entry(&callbacks,
 							  struct blk_plug_cb,
 							  list);
@@ -1744,6 +1758,7 @@ static void flush_plug_callbacks(struct blk_plug *plug, bool from_schedule)
 	}
 }
 
+/* JYW: 创建一个struct blk_plug_cb并添加到plug->cb_list */
 struct blk_plug_cb *blk_check_plugged(blk_plug_cb_fn unplug, void *data,
 				      int size)
 {
@@ -1752,13 +1767,14 @@ struct blk_plug_cb *blk_check_plugged(blk_plug_cb_fn unplug, void *data,
 
 	if (!plug)
 		return NULL;
-
+	/* JYW: 检查blk_plug_cb是否在plug链表中 */
 	list_for_each_entry(cb, &plug->cb_list, list)
 		if (cb->callback == unplug && cb->data == data)
 			return cb;
 
 	/* Not currently on the callback list */
 	BUG_ON(size < sizeof(*cb));
+	/* JYW: 如不存在，在创建一个节点并添加到plug链表上 */
 	cb = kzalloc(size, GFP_ATOMIC);
 	if (cb) {
 		cb->data = data;
@@ -1769,6 +1785,7 @@ struct blk_plug_cb *blk_check_plugged(blk_plug_cb_fn unplug, void *data,
 }
 EXPORT_SYMBOL(blk_check_plugged);
 
+/* JYW: from_schedule：是否异步unplug */
 void blk_flush_plug_list(struct blk_plug *plug, bool from_schedule)
 {
 	flush_plug_callbacks(plug, from_schedule);
@@ -1787,6 +1804,7 @@ void blk_flush_plug_list(struct blk_plug *plug, bool from_schedule)
  * is to allow the block layer to optimize I/O submission.  See the
  * documentation for blk_start_plug() for more information.
  */
+/* JYW: 结束plug，实现IO的批量下发 */
 void blk_finish_plug(struct blk_plug *plug)
 {
 	if (plug != current->plug)

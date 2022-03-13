@@ -1653,7 +1653,7 @@ EXPORT_SYMBOL_GPL(pcie_port_bus_type);
 static int __init pci_driver_init(void)
 {
 	int ret;
-
+    /* JYW: 创建/sys/bus/pci目录 */
 	ret = bus_register(&pci_bus_type);
 	if (ret)
 		return ret;

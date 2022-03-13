@@ -67,6 +67,22 @@ struct irq_affinity;
  * @get_vq_affinity: get the affinity for a virtqueue (optional).
  */
 typedef void vq_callback_t(struct virtqueue *);
+/* JYW：
+  static const struct virtio_config_ops virtio_pci_config_ops = {
+	.get		= vp_get,
+	.set		= vp_set,
+	.get_status	= vp_get_status,
+	.set_status	= vp_set_status,
+	.reset		= vp_reset,
+	.find_vqs	= vp_find_vqs,
+	.del_vqs	= vp_del_vqs,
+	.get_features	= vp_get_features,
+	.finalize_features = vp_finalize_features,
+	.bus_name	= vp_bus_name,
+	.set_vq_affinity = vp_set_vq_affinity,
+	.get_vq_affinity = vp_get_vq_affinity,
+   };
+ */
 struct virtio_config_ops {
 	void (*get)(struct virtio_device *vdev, unsigned offset,
 		    void *buf, unsigned len);
@@ -194,10 +210,12 @@ int virtio_find_vqs(struct virtio_device *vdev, unsigned nvqs,
 			const char * const names[],
 			struct irq_affinity *desc)
 {
+    /* JYW: virtio_mmio_config_ops :: vm_find_vqs */
+>>>>>>> e07dc39c7a50e84ecc5c5c16ab3172799fd4e08e
 	return vdev->config->find_vqs(vdev, nvqs, vqs, callbacks, names, NULL, desc);
 }
 
-static inline
+static inline()
 int virtio_find_vqs_ctx(struct virtio_device *vdev, unsigned nvqs,
 			struct virtqueue *vqs[], vq_callback_t *callbacks[],
 			const char * const names[], const bool *ctx,
@@ -428,22 +446,4 @@ static inline u64 virtio_cread64(struct virtio_device *vdev,
 	return virtio64_to_cpu(vdev, (__force __virtio64)ret);
 }
 
-static inline void virtio_cwrite64(struct virtio_device *vdev,
-				   unsigned int offset, u64 val)
-{
-	val = (__force u64)cpu_to_virtio64(vdev, val);
-	vdev->config->set(vdev, offset, &val, sizeof(val));
-}
-
-/* Conditional config space accessors. */
-#define virtio_cread_feature(vdev, fbit, structname, member, ptr)	\
-	({								\
-		int _r = 0;						\
-		if (!virtio_has_feature(vdev, fbit))			\
-			_r = -ENOENT;					\
-		else							\
-			virtio_cread((vdev), structname, member, ptr);	\
-		_r;							\
-	})
-
-#endif /* _LINUX_VIRTIO_CONFIG_H */
+static 

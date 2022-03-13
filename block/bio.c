@@ -1661,6 +1661,7 @@ defer:
 	schedule_work(&bio_dirty_work);
 }
 
+/* JYW: 更新当前分区的stamp时间戳，增加io_ticks计数 */
 void update_io_ticks(struct hd_struct *part, unsigned long now)
 {
 	unsigned long stamp;
@@ -1671,19 +1672,21 @@ again:
 			__part_stat_add(part, io_ticks, 1);
 		}
 	}
+	/* JYW: 如果是分区，则同时更新主分区 */
 	if (part->partno) {
 		part = &part_to_disk(part)->part0;
 		goto again;
 	}
 }
 
+/* JYW: 开始IO统计 */
 void generic_start_io_acct(struct request_queue *q, int op,
 			   unsigned long sectors, struct hd_struct *part)
 {
 	const int sgrp = op_stat_group(op);
 
 	part_stat_lock();
-
+	/* JYW: 更新当前分区的stamp时间戳，增加io_ticks计数 */
 	update_io_ticks(part, jiffies);
 	part_stat_inc(part, ios[sgrp]);
 	part_stat_add(part, sectors[sgrp], sectors);
@@ -1693,6 +1696,7 @@ void generic_start_io_acct(struct request_queue *q, int op,
 }
 EXPORT_SYMBOL(generic_start_io_acct);
 
+/* JYW: 结束IO统计 */
 void generic_end_io_acct(struct request_queue *q, int req_op,
 			 struct hd_struct *part, unsigned long start_time)
 {

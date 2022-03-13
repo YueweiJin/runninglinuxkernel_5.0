@@ -102,6 +102,7 @@ static int late_alloc;
 static int __init
 setup_io_tlb_npages(char *str)
 {
+	/* JYW: 通过bootargs指定SWIOTLB Buffer的长度，如果不指定默认为64MB */
 	if (isdigit(*str)) {
 		io_tlb_nslabs = simple_strtoul(str, &str, 0);
 		/* avoid tail segment of size < IO_TLB_SEGSIZE */
@@ -109,6 +110,7 @@ setup_io_tlb_npages(char *str)
 	}
 	if (*str == ',')
 		++str;
+	/* JYW: 是否需要强制开启swiotlb */
 	if (!strcmp(str, "force")) {
 		swiotlb_force = SWIOTLB_FORCE;
 	} else if (!strcmp(str, "noforce")) {
@@ -206,9 +208,18 @@ int __init swiotlb_init_with_tbl(char *tlb, unsigned long nslabs, int verbose)
 	io_tlb_list = memblock_alloc(
 				PAGE_ALIGN(io_tlb_nslabs * sizeof(int)),
 				PAGE_SIZE);
+	/* JYW: 保存的是第i个slab对应的高地址 */
 	io_tlb_orig_addr = memblock_alloc(
 				PAGE_ALIGN(io_tlb_nslabs * sizeof(phys_addr_t)),
 				PAGE_SIZE);
+	/* JYW: 从SWIOTLB Buffer的第i个slab开始，
+	 *	有多少个连续slab是可用（空闲）的。这个值存在上限，用常量IO_TLB_SEGSIZE表示。
+	 *	IO_TLB_SEGSIZE默认值为128
+	 */
+	/*
+	 * JYW: IO_TLB_SEGSIZE限制了DMA Streaming Mapping的最大可申请内存 —— 128 * 2KB = 256KB
+	 * 如果确实需要申请超过256KB的内存呢？那么请使用DMA Coherent Mapping，这才是适用于较大内存申请的DMA方式
+	 */
 	for (i = 0; i < io_tlb_nslabs; i++) {
 		io_tlb_list[i] = IO_TLB_SEGSIZE - OFFSET(i, IO_TLB_SEGSIZE);
 		io_tlb_orig_addr[i] = INVALID_PHYS_ADDR;
@@ -229,6 +240,7 @@ int __init swiotlb_init_with_tbl(char *tlb, unsigned long nslabs, int verbose)
 void  __init
 swiotlb_init(int verbose)
 {
+	/* JYW: 默认为64MB */
 	size_t default_size = IO_TLB_DEFAULT_SIZE;
 	unsigned char *vstart;
 	unsigned long bytes;
@@ -237,10 +249,11 @@ swiotlb_init(int verbose)
 		io_tlb_nslabs = (default_size >> IO_TLB_SHIFT);
 		io_tlb_nslabs = ALIGN(io_tlb_nslabs, IO_TLB_SEGSIZE);
 	}
-
+	/* JYW: 每个slab的大小为4K */
 	bytes = io_tlb_nslabs << IO_TLB_SHIFT;
 
 	/* Get IO TLB memory from the low pages */
+	/* JYW: 要求内核需要从低内存地址预留SWIOTLB Buffer，以保证即使是寻址能力较为有限的设备，也能够直接访问SWIOTLB Buffer */
 	vstart = memblock_alloc_low_nopanic(PAGE_ALIGN(bytes), PAGE_SIZE);
 	if (vstart && !swiotlb_init_with_tbl(vstart, io_tlb_nslabs, verbose))
 		return;
@@ -387,6 +400,7 @@ void __init swiotlb_exit(void)
 /*
  * Bounce: copy the swiotlb buffer back to the original dma location
  */
+/* JYW: 如果映射至swiotlb buffer成功，则会将数据进行同步 */
 static void swiotlb_bounce(phys_addr_t orig_addr, phys_addr_t tlb_addr,
 			   size_t size, enum dma_data_direction dir)
 {
@@ -424,6 +438,10 @@ static void swiotlb_bounce(phys_addr_t orig_addr, phys_addr_t tlb_addr,
 	}
 }
 
+/*
+ * JYW：通过查找一个swiotlb buffer映射一个原始DMA空间
+ *  返回值：tlb_addr
+ */
 phys_addr_t swiotlb_tbl_map_single(struct device *hwdev,
 				   dma_addr_t tbl_dma_addr,
 				   phys_addr_t orig_addr, size_t size,
@@ -522,6 +540,7 @@ not_found:
 	spin_unlock_irqrestore(&io_tlb_lock, flags);
 	if (!(attrs & DMA_ATTR_NO_WARN) && printk_ratelimit())
 		dev_warn(hwdev, "swiotlb buffer is full (sz: %zd bytes)\n", size);
+	/* JYW: 如果满了，则会映射失败 */
 	return DMA_MAPPING_ERROR;
 found:
 	spin_unlock_irqrestore(&io_tlb_lock, flags);
@@ -533,6 +552,9 @@ found:
 	 */
 	for (i = 0; i < nslots; i++)
 		io_tlb_orig_addr[index+i] = orig_addr + (i << IO_TLB_SHIFT);
+	/*
+	 * JYW: 同步数据，memcpy()需要CPU参与，这降低了效率
+	 */
 	if (!(attrs & DMA_ATTR_SKIP_CPU_SYNC) &&
 	    (dir == DMA_TO_DEVICE || dir == DMA_BIDIRECTIONAL))
 		swiotlb_bounce(orig_addr, tlb_addr, size, DMA_TO_DEVICE);
@@ -623,6 +645,7 @@ void swiotlb_tbl_sync_single(struct device *hwdev, phys_addr_t tlb_addr,
  * Create a swiotlb mapping for the buffer at @phys, and in case of DMAing
  * to the device copy the data into it as well.
  */
+/* JYW: 将原始的phys关联到swiotlb buffer，并拷贝数据 */
 bool swiotlb_map(struct device *dev, phys_addr_t *phys, dma_addr_t *dma_addr,
 		size_t size, enum dma_data_direction dir, unsigned long attrs)
 {
@@ -635,6 +658,7 @@ bool swiotlb_map(struct device *dev, phys_addr_t *phys, dma_addr_t *dma_addr,
 	}
 
 	/* Oh well, have to allocate and map a bounce buffer. */
+	/* JYW: 返回的是一个tlb_addr */
 	*phys = swiotlb_tbl_map_single(dev, __phys_to_dma(dev, io_tlb_start),
 			*phys, size, dir, attrs);
 	if (*phys == DMA_MAPPING_ERROR)

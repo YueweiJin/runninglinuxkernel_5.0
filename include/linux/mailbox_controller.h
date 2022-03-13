@@ -77,6 +77,7 @@ struct mbox_chan_ops {
  */
 struct mbox_controller {
 	struct device *dev;
+    /* JYW：arm_mhu ::  mhu_ops */
 	const struct mbox_chan_ops *ops;
 	struct mbox_chan *chans;
 	int num_chans;

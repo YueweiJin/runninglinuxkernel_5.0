@@ -1387,7 +1387,7 @@ static void r5c_flush_stripe(struct r5conf *conf, struct stripe_head *sh)
 
 	list_del_init(&sh->lru);
 	atomic_inc(&sh->count);
-
+	/* JYW: 设置条带的状态为STRIPE_HANDLE，并增加活跃条带的计数 */
 	set_bit(STRIPE_HANDLE, &sh->state);
 	atomic_inc(&conf->active_stripes);
 	r5c_make_stripe_write_out(sh);

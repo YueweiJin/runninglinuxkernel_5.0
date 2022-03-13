@@ -840,6 +840,7 @@ int md_super_wait(struct mddev *mddev)
 	return 0;
 }
 
+/* JYW: 同步读取一个页面 */
 int sync_page_io(struct md_rdev *rdev, sector_t sector, int size,
 		 struct page *page, int op, int op_flags, bool metadata_op)
 {
@@ -869,6 +870,7 @@ int sync_page_io(struct md_rdev *rdev, sector_t sector, int size,
 }
 EXPORT_SYMBOL_GPL(sync_page_io);
 
+/* JYW: 读取磁盘的超级块到内存 */
 static int read_disk_sb(struct md_rdev *rdev, int size)
 {
 	char b[BDEVNAME_SIZE];
@@ -1451,6 +1453,7 @@ static __le32 calc_sb_1_csum(struct mdp_superblock_1 *sb)
 	return cpu_to_le32(csum);
 }
 
+/* JYW: 加载超级块入口 */
 static int super_1_load(struct md_rdev *rdev, struct md_rdev *refdev, int minor_version)
 {
 	struct mdp_superblock_1 *sb;
@@ -1488,18 +1491,19 @@ static int super_1_load(struct md_rdev *rdev, struct md_rdev *refdev, int minor_
 	/* superblock is rarely larger than 1K, but it can be larger,
 	 * and it is safe to read 4k, so we do that
 	 */
+	/* JYW: 先读取4KB */
 	ret = read_disk_sb(rdev, 4096);
 	if (ret) return ret;
 
 	sb = page_address(rdev->sb_page);
-
+	/* JYW: 校验超级块信息 */
 	if (sb->magic != cpu_to_le32(MD_SB_MAGIC) ||
 	    sb->major_version != cpu_to_le32(1) ||
 	    le32_to_cpu(sb->max_dev) > (4096-256)/2 ||
 	    le64_to_cpu(sb->super_offset) != rdev->sb_start ||
 	    (le32_to_cpu(sb->feature_map) & ~MD_FEATURE_ALL) != 0)
 		return -EINVAL;
-
+	/* JYW: 校验超级块csum */
 	if (calc_sb_1_csum(sb) != sb->sb_csum) {
 		pr_warn("md: invalid superblock checksum on %s\n",
 			bdevname(rdev->bdev,b));
@@ -5314,6 +5318,7 @@ static int md_alloc(dev_t dev, char *name)
 		mddev->hold_active = UNTIL_STOP;
 
 	error = -ENOMEM;
+    /* JYW: 分配请求队列 */
 	mddev->queue = blk_alloc_queue(GFP_KERNEL);
 	if (!mddev->queue)
 		goto abort;
@@ -8804,7 +8809,7 @@ void md_check_recovery(struct mddev *mddev)
 
 	if (mddev->suspended)
 		return;
-
+	/* JYW: bitmap文件清零 */
 	if (mddev->bitmap)
 		md_bitmap_daemon_work(mddev);
 

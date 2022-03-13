@@ -226,6 +226,7 @@ static inline __u64 md_event(mdp_super_t *sb) {
  * total size: 256 bytes plus 2 per device.
  *  1K allows 384 devices.
  */
+/* JYW: 超级块结构体 */
 struct mdp_superblock_1 {
 	/* constant array information - 128 bytes */
 	__le32	magic;		/* MD_SB_MAGIC: 0xa92b4efc - little endian */

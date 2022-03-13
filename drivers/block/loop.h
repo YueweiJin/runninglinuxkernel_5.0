@@ -47,6 +47,7 @@ struct loop_device {
 				 unsigned long arg); 
 
 	struct file *	lo_backing_file;
+    /* JYW: 关联文件的块设备 (from : loop_set_fd) */
 	struct block_device *lo_device;
 	void		*key_data; 
 
@@ -65,6 +66,7 @@ struct loop_device {
 };
 
 struct loop_cmd {
+    /* JYW: loop_queue_work */
 	struct kthread_work work;
 	bool use_aio; /* use AIO interface to handle I/O */
 	atomic_t ref; /* only for aio */

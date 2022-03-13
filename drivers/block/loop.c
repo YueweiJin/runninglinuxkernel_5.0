@@ -579,6 +579,7 @@ static int lo_rw_aio(struct loop_device *lo, struct loop_cmd *cmd,
 	return 0;
 }
 
+/* JYW: 取出请求实现读文件、写文件等操作 */
 static int do_req_filebacked(struct loop_device *lo, struct request *rq)
 {
 	struct loop_cmd *cmd = blk_mq_rq_to_pdu(rq);
@@ -900,6 +901,7 @@ static int loop_prepare_queue(struct loop_device *lo)
 	return 0;
 }
 
+/* JYW: 将/dev/loopX绑定一个文件 */
 static int loop_set_fd(struct loop_device *lo, fmode_t mode,
 		       struct block_device *bdev, unsigned int arg)
 {
@@ -915,6 +917,7 @@ static int loop_set_fd(struct loop_device *lo, fmode_t mode,
 	__module_get(THIS_MODULE);
 
 	error = -EBADF;
+    /* JYW: 传入的是绑定文件的fd */
 	file = fget(arg);
 	if (!file)
 		goto out;
@@ -1517,6 +1520,7 @@ static int lo_simple_ioctl(struct loop_device *lo, unsigned int cmd,
 	return err;
 }
 
+/* JYW: 打开/dev/loopX时的ioctl */
 static int lo_ioctl(struct block_device *bdev, fmode_t mode,
 	unsigned int cmd, unsigned long arg)
 {
@@ -1524,6 +1528,7 @@ static int lo_ioctl(struct block_device *bdev, fmode_t mode,
 	int err;
 
 	switch (cmd) {
+    /* JYW: 将/dev/loopX绑定一个文件 */
 	case LOOP_SET_FD:
 		return loop_set_fd(lo, mode, bdev, arg);
 	case LOOP_CHANGE_FD:
@@ -1833,6 +1838,7 @@ static blk_status_t loop_queue_rq(struct blk_mq_hw_ctx *hctx,
 	struct loop_cmd *cmd = blk_mq_rq_to_pdu(rq);
 	struct loop_device *lo = rq->q->queuedata;
 
+    /* JYW: 启动请求 */
 	blk_mq_start_request(rq);
 
 	if (lo->lo_state != Lo_bound)
@@ -1857,11 +1863,13 @@ static blk_status_t loop_queue_rq(struct blk_mq_hw_ctx *hctx,
 	} else
 #endif
 		cmd->css = NULL;
+    /* JYW: 触发 loop_queue_work */
 	kthread_queue_work(&lo->worker, &cmd->work);
 
 	return BLK_STS_OK;
 }
 
+/* JYW: 处理请求命令 */
 static void loop_handle_cmd(struct loop_cmd *cmd)
 {
 	struct request *rq = blk_mq_rq_from_pdu(cmd);
@@ -1874,6 +1882,7 @@ static void loop_handle_cmd(struct loop_cmd *cmd)
 		goto failed;
 	}
 
+    /* JYW: 取出请求实现读文件、写文件等操作 */
 	ret = do_req_filebacked(lo, rq);
  failed:
 	/* complete non-aio request */
@@ -2143,6 +2152,7 @@ static struct miscdevice loop_misc = {
 MODULE_ALIAS_MISCDEV(LOOP_CTRL_MINOR);
 MODULE_ALIAS("devname:loop-control");
 
+/* JYW: 主要是生成/dev/loopX */
 static int __init loop_init(void)
 {
 	int i, nr;

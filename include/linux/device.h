@@ -973,6 +973,7 @@ struct device {
 
 	struct kobject kobj;
 	const char		*init_name; /* initial name of the device */
+    /* JYW: struct pci_dev：pci_dev_type (from: pci_alloc_dev) */
 	const struct device_type *type;
 
 	struct mutex		mutex;	/* mutex to synchronize calls to

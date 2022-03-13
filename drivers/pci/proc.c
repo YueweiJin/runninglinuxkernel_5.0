@@ -342,6 +342,7 @@ static void pci_seq_stop(struct seq_file *m, void *v)
 	}
 }
 
+/* JYW: cat /proc/bus/pci/devices/触发 */
 static int show_device(struct seq_file *m, void *v)
 {
 	const struct pci_dev *dev = v;
@@ -390,6 +391,7 @@ static const struct seq_operations proc_bus_pci_devices_op = {
 
 static struct proc_dir_entry *proc_bus_pci_dir;
 
+/* JYW: 创建/proc/bus/pci/<bus->number>/<PCI_SLOT.PCI_FUNC> */
 int pci_proc_attach_device(struct pci_dev *dev)
 {
 	struct pci_bus *bus = dev->bus;
@@ -406,11 +408,12 @@ int pci_proc_attach_device(struct pci_dev *dev)
 		} else {
 			sprintf(name, "%02x", bus->number);
 		}
+        /* JYW: 创建/proc/bus/pci/<bus->number> */
 		bus->procdir = proc_mkdir(name, proc_bus_pci_dir);
 		if (!bus->procdir)
 			return -ENOMEM;
 	}
-
+     /* JYW: 创建/proc/bus/pci/<bus->number>/<PCI_SLOT.PCI_FUNC> */
 	sprintf(name, "%02x.%x", PCI_SLOT(dev->devfn), PCI_FUNC(dev->devfn));
 	e = proc_create_data(name, S_IFREG | S_IRUGO | S_IWUSR, bus->procdir,
 			     &proc_bus_pci_operations, dev);
@@ -435,10 +438,12 @@ int pci_proc_detach_bus(struct pci_bus *bus)
 	return 0;
 }
 
+/* JYW: 可以查看真个PCI的拓扑信息 */
 static int __init pci_proc_init(void)
 {
 	struct pci_dev *dev = NULL;
 	proc_bus_pci_dir = proc_mkdir("bus/pci", NULL);
+    /* JYW: 创建/proc/bus/pci/devices目录 */
 	proc_create_seq("devices", 0, proc_bus_pci_dir,
 		    &proc_bus_pci_devices_op);
 	proc_initialized = 1;

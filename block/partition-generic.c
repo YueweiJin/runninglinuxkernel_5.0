@@ -315,7 +315,7 @@ struct hd_struct *add_partition(struct gendisk *disk, int partno,
 	if (err)
 		return ERR_PTR(err);
 	ptbl = rcu_dereference_protected(disk->part_tbl, 1);
-
+	/* JYW: 若已经存在，则返回-EBUSY */
 	if (ptbl->part[partno])
 		return ERR_PTR(-EBUSY);
 
@@ -337,6 +337,7 @@ struct hd_struct *add_partition(struct gendisk *disk, int partno,
 	p->discard_alignment =
 		queue_limit_discard_alignment(&disk->queue->limits, start);
 	p->nr_sects = len;
+	/* JYW: 表示分区号，从1开始 */
 	p->partno = partno;
 	p->policy = get_disk_ro(disk);
 

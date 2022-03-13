@@ -6142,6 +6142,7 @@ void __weak pci_fixup_cardbus(struct pci_bus *bus)
 }
 EXPORT_SYMBOL(pci_fixup_cardbus);
 
+/* JYW: 可通过pci=earlydump方式开启调试选项 */
 static int __init pci_setup(char *str)
 {
 	while (str) {

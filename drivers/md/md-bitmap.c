@@ -1005,6 +1005,7 @@ static int md_bitmap_file_test_bit(struct bitmap *bitmap, sector_t block)
 /* this gets called when the md device is ready to unplug its underlying
  * (slave) device queues -- before we let any writes go down, we need to
  * sync the dirty pages of the bitmap file to disk */
+/* JYW: 将内存中的bitmap位图同步刷新到外部磁盘bitmap文件中 */
 void md_bitmap_unplug(struct bitmap *bitmap)
 {
 	unsigned long i;
@@ -1225,7 +1226,7 @@ static bitmap_counter_t *md_bitmap_get_counter(struct bitmap_counts *bitmap,
  * bitmap daemon -- periodically wakes up to clean bits and flush pages
  *			out to disk
  */
-
+/* JYW: bitmap文件清零 */
 void md_bitmap_daemon_work(struct mddev *mddev)
 {
 	struct bitmap *bitmap;
@@ -1279,6 +1280,7 @@ void md_bitmap_daemon_work(struct mddev *mddev)
 			sb->events_cleared =
 				cpu_to_le64(bitmap->events_cleared);
 			kunmap_atomic(sb);
+			/* JYW: 标记页面属性为BITMAP_PAGE_NEEDWRITE */
 			set_page_attr(bitmap, 0,
 				      BITMAP_PAGE_NEEDWRITE);
 		}
@@ -1392,6 +1394,7 @@ __acquires(bitmap->lock)
 			&(bitmap->bp[page].map[pageoff]);
 }
 
+/* JYW: 对阵列写数据前，将内存中的对应bitmap位图置位 */
 int md_bitmap_startwrite(struct bitmap *bitmap, sector_t offset, unsigned long sectors, int behind)
 {
 	if (!bitmap)
@@ -1456,6 +1459,8 @@ int md_bitmap_startwrite(struct bitmap *bitmap, sector_t offset, unsigned long s
 }
 EXPORT_SYMBOL(md_bitmap_startwrite);
 
+/* JYW: 对阵列写数据后，将内存中的对应bitmap位图清零 */
+/* JYW: 正真的清零：md_check_recovery -> bitmap_daemon_work */
 void md_bitmap_endwrite(struct bitmap *bitmap, sector_t offset,
 			unsigned long sectors, int success, int behind)
 {
@@ -1484,6 +1489,7 @@ void md_bitmap_endwrite(struct bitmap *bitmap, sector_t offset,
 		if (success && !bitmap->mddev->degraded &&
 		    bitmap->events_cleared < bitmap->mddev->events) {
 			bitmap->events_cleared = bitmap->mddev->events;
+			/* JYW: 置位need_sync */
 			bitmap->need_sync = 1;
 			sysfs_notify_dirent_safe(bitmap->sysfs_can_clear);
 		}
@@ -1496,6 +1502,7 @@ void md_bitmap_endwrite(struct bitmap *bitmap, sector_t offset,
 
 		(*bmc)--;
 		if (*bmc <= 2) {
+			/* JYW: 仅仅将缓存页属性标记为pending状态 */
 			md_bitmap_set_pending(&bitmap->counts, offset);
 			bitmap->allclean = 0;
 		}

@@ -54,14 +54,18 @@ struct virtio_blk {
 	struct virtio_blk_vq *vqs;
 };
 
+/* JYW: 请求命令数据 */
 struct virtblk_req {
 #ifdef CONFIG_VIRTIO_BLK_SCSI
 	struct scsi_request sreq;	/* for SCSI passthrough, must be first */
 	u8 sense[SCSI_SENSE_BUFFERSIZE];
 	struct virtio_scsi_inhdr in_hdr;
 #endif
+    /* JYW: 告诉驱动是读还是写（type），优先级，扇区号 */
 	struct virtio_blk_outhdr out_hdr;
+    /* JYW: 用来指示操作结果，0表示成功 */
 	u8 status;
+    /* JYW: 缓冲区 */
 	struct scatterlist sg[];
 };
 
@@ -309,7 +313,7 @@ static blk_status_t virtio_queue_rq(struct blk_mq_hw_ctx *hctx,
 		WARN_ON_ONCE(1);
 		return BLK_STS_IOERR;
 	}
-
+    /* JYW: 封装请求信息 */
 	vbr->out_hdr.type = cpu_to_virtio32(vblk->vdev, type);
 	vbr->out_hdr.sector = type ?
 		0 : cpu_to_virtio64(vblk->vdev, blk_rq_pos(req));

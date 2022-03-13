@@ -338,6 +338,11 @@ static inline void list_cut_before(struct list_head *list,
 	entry->prev = head;
 }
 
+/* JYW:
+ *     list <-> first <-> ... <-> last
+ *      |
+ *     prev                            <->next
+ */
 static inline void __list_splice(const struct list_head *list,
 				 struct list_head *prev,
 				 struct list_head *next)
@@ -400,10 +405,16 @@ static inline void list_splice_init(struct list_head *list,
  * Each of the lists is a queue.
  * The list at @list is reinitialised
  */
+/* JYW: 将list链表合并到head链表 */
 static inline void list_splice_tail_init(struct list_head *list,
 					 struct list_head *head)
 {
 	if (!list_empty(list)) {
+		/* JYW:
+		*     list <-> first <-> ... <-> last
+		*      |
+		*     head->prev                      <->head
+		*/
 		__list_splice(list, head->prev, head);
 		INIT_LIST_HEAD(list);
 	}

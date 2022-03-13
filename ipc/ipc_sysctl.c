@@ -124,6 +124,7 @@ static int ipc_mni = IPCMNI;
 
 static struct ctl_table ipc_kern_table[] = {
 	{
+		/* JYW: 调整消息段的最大大小 */
 		.procname	= "shmmax",
 		.data		= &init_ipc_ns.shm_ctlmax,
 		.maxlen		= sizeof(init_ipc_ns.shm_ctlmax),
@@ -241,6 +242,7 @@ static struct ctl_table ipc_root_table[] = {
 
 static int __init ipc_sysctl_init(void)
 {
+	/* JYW: 注册至/sys/kernel/节点 */
 	register_sysctl_table(ipc_root_table);
 	return 0;
 }

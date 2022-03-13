@@ -273,6 +273,9 @@ static inline void set_dma_ops(struct device *dev,
 	dev->dma_ops = dma_ops;
 }
 
+/* JYW:
+ * dma_map_single -> dma_map_single_attrs -> dma_map_page_attrs
+ */
 static inline dma_addr_t dma_map_page_attrs(struct device *dev,
 		struct page *page, size_t offset, size_t size,
 		enum dma_data_direction dir, unsigned long attrs)

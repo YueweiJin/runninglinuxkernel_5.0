@@ -60,6 +60,7 @@
  *
  * Returns a pointer to the endpoint on success, or NULL on error.
  */
+/* JYW: 创建端点 */
 struct rpmsg_endpoint *rpmsg_create_ept(struct rpmsg_device *rpdev,
 					rpmsg_rx_cb_t cb, void *priv,
 					struct rpmsg_channel_info chinfo)
@@ -79,6 +80,7 @@ EXPORT_SYMBOL(rpmsg_create_ept);
  * created with rpmsg_create_ept(). As with other types of "free" NULL
  * is a valid parameter.
  */
+/* JYW: 销毁端点 */
 void rpmsg_destroy_ept(struct rpmsg_endpoint *ept)
 {
 	if (ept)
@@ -104,6 +106,7 @@ EXPORT_SYMBOL(rpmsg_destroy_ept);
  *
  * Returns 0 on success and an appropriate error value on failure.
  */
+/* JYW: 发送rpmsg */
 int rpmsg_send(struct rpmsg_endpoint *ept, void *data, int len)
 {
 	if (WARN_ON(!ept))
@@ -133,6 +136,7 @@ EXPORT_SYMBOL(rpmsg_send);
  *
  * Returns 0 on success and an appropriate error value on failure.
  */
+/* JYW: 发送rpmsg到指定的地址 */
 int rpmsg_sendto(struct rpmsg_endpoint *ept, void *data, int len, u32 dst)
 {
 	if (WARN_ON(!ept))
@@ -164,6 +168,7 @@ EXPORT_SYMBOL(rpmsg_sendto);
  *
  * Returns 0 on success and an appropriate error value on failure.
  */
+/* JYW: 发送rpmsg到指定的地址 */
 int rpmsg_send_offchannel(struct rpmsg_endpoint *ept, u32 src, u32 dst,
 			  void *data, int len)
 {
@@ -193,6 +198,7 @@ EXPORT_SYMBOL(rpmsg_send_offchannel);
  *
  * Returns 0 on success and an appropriate error value on failure.
  */
+/* JYW: 发送rpmsg */
 int rpmsg_trysend(struct rpmsg_endpoint *ept, void *data, int len)
 {
 	if (WARN_ON(!ept))
@@ -221,6 +227,7 @@ EXPORT_SYMBOL(rpmsg_trysend);
  *
  * Returns 0 on success and an appropriate error value on failure.
  */
+/* JYW: 发送rpmsg到指定的地址 */
 int rpmsg_trysendto(struct rpmsg_endpoint *ept, void *data, int len, u32 dst)
 {
 	if (WARN_ON(!ept))
@@ -240,6 +247,7 @@ EXPORT_SYMBOL(rpmsg_trysendto);
  *
  * Returns mask representing the current state of the endpoint's send buffers
  */
+/* JYW: 轮询端点的发送buffer */
 __poll_t rpmsg_poll(struct rpmsg_endpoint *ept, struct file *filp,
 			poll_table *wait)
 {
@@ -271,6 +279,7 @@ EXPORT_SYMBOL(rpmsg_poll);
  *
  * Returns 0 on success and an appropriate error value on failure.
  */
+/* JYW: 发送消息到指定的地址 */
 int rpmsg_trysend_offchannel(struct rpmsg_endpoint *ept, u32 src, u32 dst,
 			     void *data, int len)
 {
@@ -458,7 +467,7 @@ static int rpmsg_dev_probe(struct device *dev)
 		strncpy(chinfo.name, rpdev->id.name, RPMSG_NAME_SIZE);
 		chinfo.src = rpdev->src;
 		chinfo.dst = RPMSG_ADDR_ANY;
-
+        /* JYW：走设备的rpdev->ops->create_ept 回调接口 */
 		ept = rpmsg_create_ept(rpdev, rpdrv->callback, NULL, chinfo);
 		if (!ept) {
 			dev_err(dev, "failed to create endpoint\n");
@@ -469,7 +478,7 @@ static int rpmsg_dev_probe(struct device *dev)
 		rpdev->ept = ept;
 		rpdev->src = ept->addr;
 	}
-
+    /* JYW: 走rpdrv驱动的probe接口 */
 	err = rpdrv->probe(rpdev);
 	if (err) {
 		dev_err(dev, "%s: failed: %d\n", __func__, err);
@@ -477,7 +486,7 @@ static int rpmsg_dev_probe(struct device *dev)
 			rpmsg_destroy_ept(ept);
 		goto out;
 	}
-
+    /* JYW: 走设备的announce_create回调接口 */
 	if (ept && rpdev->ops->announce_create)
 		err = rpdev->ops->announce_create(rpdev);
 out:
@@ -503,6 +512,7 @@ static int rpmsg_dev_remove(struct device *dev)
 	return err;
 }
 
+/* JYW: rpmsg总线 */
 static struct bus_type rpmsg_bus = {
 	.name		= "rpmsg",
 	.match		= rpmsg_dev_match,

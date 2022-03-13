@@ -249,6 +249,7 @@ struct gpio_irq_chip {
  * are referenced through calls like gpio_get_value(gpio), the offset
  * is calculated by subtracting @base from the gpio number.
  */
+/* JYW: 抽象了一个GPIO控制器，通过 gpiochip_add() 注册 */
 struct gpio_chip {
 	const char		*label;
 	struct gpio_device	*gpiodev;

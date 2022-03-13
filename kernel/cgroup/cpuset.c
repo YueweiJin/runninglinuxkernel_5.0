@@ -995,6 +995,7 @@ void rebuild_sched_domains(void)
  * effective cpuset's.  As this function is called with cpuset_mutex held,
  * cpuset membership stays stable.
  */
+/* JYW: 遍历更新cgroup控制组上task链上的进程的cpus_allowed俺码，并将进程迁移过去 */
 static void update_tasks_cpumask(struct cpuset *cs)
 {
 	struct css_task_iter it;
@@ -1256,6 +1257,7 @@ static int update_parent_subparts_cpumask(struct cpuset *cpuset, int cmd,
  *
  * Called with cpuset_mutex held
  */
+/* JYW: 用户数据更新cgroup组的effective_cpu值 */
 static void update_cpumasks_hier(struct cpuset *cs, struct tmpmasks *tmp)
 {
 	struct cpuset *cp;
@@ -1324,6 +1326,7 @@ static void update_cpumasks_hier(struct cpuset *cs, struct tmpmasks *tmp)
 
 			case PRS_ENABLED:
 				if (update_parent_subparts_cpumask(cp, partcmd_update, NULL, tmp))
+					/* JYW: 遍历更新cgroup控制组上task链上的进程的cpus_allowed俺码，并将进程迁移过去 */
 					update_tasks_cpumask(parent);
 				break;
 
@@ -1505,7 +1508,7 @@ static int update_cpumask(struct cpuset *cs, struct cpuset *trialcs,
 		cs->nr_subparts_cpus = cpumask_weight(cs->subparts_cpus);
 	}
 	spin_unlock_irq(&callback_lock);
-
+	/* JYW: 用户数据更新cgroup组的effective_cpu值 */
 	update_cpumasks_hier(cs, &tmp);
 
 	if (cs->partition_root_state) {
@@ -2493,6 +2496,7 @@ out_unlock:
 
 static struct cftype legacy_files[] = {
 	{
+		/* JYW: /sys/fs/cgroup/cpuset/lxc_test/cpuset.cpus ? */
 		.name = "cpus",
 		.seq_show = cpuset_common_seq_show,
 		.write = cpuset_write_resmask,

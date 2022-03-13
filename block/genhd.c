@@ -45,6 +45,7 @@ static void disk_add_events(struct gendisk *disk);
 static void disk_del_events(struct gendisk *disk);
 static void disk_release_events(struct gendisk *disk);
 
+/* JYW: 更新请求的个数 */
 void part_inc_in_flight(struct request_queue *q, struct hd_struct *part, int rw)
 {
 	if (queue_is_mq(q))
@@ -55,12 +56,14 @@ void part_inc_in_flight(struct request_queue *q, struct hd_struct *part, int rw)
 		part_stat_local_inc(&part_to_disk(part)->part0, in_flight[rw]);
 }
 
+/* JYW: 更新请求的个数 */
 void part_dec_in_flight(struct request_queue *q, struct hd_struct *part, int rw)
 {
 	if (queue_is_mq(q))
 		return;
 
 	part_stat_local_dec(part, in_flight[rw]);
+	/* JYW: 如果当前是块设备分区，则同样更新主分区的req的个数 */
 	if (part->partno)
 		part_stat_local_dec(&part_to_disk(part)->part0, in_flight[rw]);
 }
@@ -107,6 +110,7 @@ void part_in_flight_rw(struct request_queue *q, struct hd_struct *part,
 		inflight[1] = 0;
 }
 
+/* JYW: 根据分区号查找hd_struct结构 */
 struct hd_struct *__disk_get_part(struct gendisk *disk, int partno)
 {
 	struct disk_part_tbl *ptbl = rcu_dereference(disk->part_tbl);
@@ -130,6 +134,7 @@ struct hd_struct *__disk_get_part(struct gendisk *disk, int partno)
  * RETURNS:
  * Pointer to the found partition on success, NULL if not found.
  */
+/* JYW: 根据分区号查找hd_struct结构 */
 struct hd_struct *disk_get_part(struct gendisk *disk, int partno)
 {
 	struct hd_struct *part;
@@ -946,6 +951,7 @@ void __init printk_all_partitions(void)
 			       (unsigned long long)part_nr_sects_read(part) >> 1
 			       , disk_name(disk, part->partno, name_buf),
 			       part->info ? part->info->uuid : "");
+			/* JYW: 如果是主分区 */
 			if (is_part0) {
 				if (dev->parent && dev->parent->driver)
 					printk(" driver: %s\n",
@@ -1349,6 +1355,7 @@ static int diskstats_show(struct seq_file *seqf, void *v)
 	*/
 
 	disk_part_iter_init(&piter, gp, DISK_PITER_INCL_EMPTY_PART0);
+	/* JYW: 遍历每个块设备分区struct hd_struct */
 	while ((hd = disk_part_iter_next(&piter))) {
 		inflight = part_in_flight(gp->queue, hd);
 		seq_printf(seqf, "%4d %7d %s "
@@ -1571,6 +1578,7 @@ int bdev_read_only(struct block_device *bdev)
 
 EXPORT_SYMBOL(bdev_read_only);
 
+/* JYW: 无效对应分区的buffer */
 int invalidate_partition(struct gendisk *disk, int partno)
 {
 	int res = 0;
