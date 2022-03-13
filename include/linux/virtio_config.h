@@ -211,7 +211,6 @@ int virtio_find_vqs(struct virtio_device *vdev, unsigned nvqs,
 			struct irq_affinity *desc)
 {
     /* JYW: virtio_mmio_config_ops :: vm_find_vqs */
->>>>>>> e07dc39c7a50e84ecc5c5c16ab3172799fd4e08e
 	return vdev->config->find_vqs(vdev, nvqs, vqs, callbacks, names, NULL, desc);
 }
 
