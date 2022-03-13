@@ -290,6 +290,7 @@ static inline void *get_freepointer_safe(struct kmem_cache *s, void *object)
 	void *p;
 
 	if (!debug_pagealloc_enabled())
+		/* JYW: 崩溃在这里 */
 		return get_freepointer(s, object);
 
 	freepointer_addr = (unsigned long)object + s->offset;
@@ -731,6 +732,7 @@ static void init_object(struct kmem_cache *s, void *object, u8 val)
 		memset(p + s->object_size, val, s->inuse - s->object_size);
 }
 
+/* JYW: 修复数据 */
 static void restore_bytes(struct kmem_cache *s, char *message, u8 data,
 						void *from, void *to)
 {
@@ -738,6 +740,7 @@ static void restore_bytes(struct kmem_cache *s, char *message, u8 data,
 	memset(from, data, to - from);
 }
 
+/* JYW: slub报错，通过返回1，失败返回0 */
 static int check_bytes_and_report(struct kmem_cache *s, struct page *page,
 			u8 *object, char *what,
 			u8 *start, unsigned int value, unsigned int bytes)
@@ -759,7 +762,7 @@ static int check_bytes_and_report(struct kmem_cache *s, struct page *page,
 	pr_err("INFO: 0x%p-0x%p. First byte 0x%x instead of 0x%x\n",
 					fault, end - 1, fault[0], value);
 	print_trailer(s, page, object);
-
+	/* JYW: 修复数据 */
 	restore_bytes(s, what, value, fault, end);
 	return 0;
 }
@@ -801,7 +804,7 @@ static int check_bytes_and_report(struct kmem_cache *s, struct page *page,
  * ignored. And therefore no slab options that rely on these boundaries
  * may be used with merged slabcaches.
  */
-
+/* JYW: 通过返回1，失败报错 */
 static int check_pad_bytes(struct kmem_cache *s, struct page *page, u8 *p)
 {
 	unsigned long off = s->inuse;	/* The end of info */
@@ -818,7 +821,7 @@ static int check_pad_bytes(struct kmem_cache *s, struct page *page, u8 *p)
 
 	if (size_from_object(s) == off)
 		return 1;
-
+	/* JYW: 通过返回1，失败报错 */
 	return check_bytes_and_report(s, page, p, "Object padding",
 			p + off, POISON_INUSE, size_from_object(s) - off);
 }
@@ -859,6 +862,7 @@ static int slab_pad_check(struct kmem_cache *s, struct page *page)
 	return 0;
 }
 
+/* JYW: 通过返回1，失败返回0 */
 static int check_object(struct kmem_cache *s, struct page *page,
 					void *object, u8 val)
 {
@@ -866,10 +870,11 @@ static int check_object(struct kmem_cache *s, struct page *page,
 	u8 *endobject = object + s->object_size;
 
 	if (s->flags & SLAB_RED_ZONE) {
+		/* JYW: 通过返回1，失败返回0 */
 		if (!check_bytes_and_report(s, page, object, "Redzone",
 			object - s->red_left_pad, val, s->red_left_pad))
 			return 0;
-
+		/* JYW: 通过返回1，失败返回0 */
 		if (!check_bytes_and_report(s, page, object, "Redzone",
 			endobject, val, s->inuse - s->object_size))
 			return 0;
@@ -1092,6 +1097,7 @@ static void setup_page_debug(struct kmem_cache *s, void *addr, int order)
 	metadata_access_disable();
 }
 
+/* JYW: 检查通过返回1 */
 static inline int alloc_consistency_checks(struct kmem_cache *s,
 					struct page *page,
 					void *object, unsigned long addr)
@@ -1103,7 +1109,7 @@ static inline int alloc_consistency_checks(struct kmem_cache *s,
 		object_err(s, page, object, "Freelist Pointer check fails");
 		return 0;
 	}
-
+	/* JYW: 分配时检查是否是0xbb */
 	if (!check_object(s, page, object, SLUB_RED_INACTIVE))
 		return 0;
 
@@ -1127,6 +1133,7 @@ static noinline int alloc_debug_processing(struct kmem_cache *s,
 	return 1;
 
 bad:
+	/* JYW: 认为已经在用了，把他踢掉 */
 	if (PageSlab(page)) {
 		/*
 		 * If this is a slab page then lets do the best we can
@@ -1727,6 +1734,7 @@ static void __free_slab(struct kmem_cache *s, struct page *page)
 		slab_pad_check(s, page);
 		for_each_object(p, s, page_address(page),
 						page->objects)
+			/* JYW: free时检查是否是0xbb */
 			check_object(s, page, p, SLUB_RED_INACTIVE);
 	}
 
@@ -4404,12 +4412,13 @@ static int validate_slab(struct kmem_cache *s, struct page *page,
 	bitmap_zero(map, page->objects);
 
 	get_map(s, page, map);
+	/* JYW: 第一个循环遍历所有可用的object */
 	for_each_object(p, s, addr, page->objects) {
 		if (test_bit(slab_index(p, s, addr), map))
 			if (!check_object(s, page, p, SLUB_RED_INACTIVE))
 				return 0;
 	}
-
+	/* JYW: 第二个循环遍历已经分配出去的object */
 	for_each_object(p, s, addr, page->objects)
 		if (!test_bit(slab_index(p, s, addr), map))
 			if (!check_object(s, page, p, SLUB_RED_ACTIVE))
