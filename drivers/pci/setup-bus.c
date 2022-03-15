@@ -182,6 +182,7 @@ static void __dev_sort_resources(struct pci_dev *dev,
 	u16 class = dev->class >> 8;
 
 	/* Don't touch classless devices or host bridges or ioapics.  */
+	/* JYW: 如果EP的class未定义，则会退出，造成资源分配失败 */
 	if (class == PCI_CLASS_NOT_DEFINED || class == PCI_CLASS_BRIDGE_HOST)
 		return;
 
