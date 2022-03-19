@@ -54,11 +54,13 @@ extern unsigned long long nr_context_switches(void);
 extern unsigned int kstat_irqs_cpu(unsigned int irq, int cpu);
 extern void kstat_incr_irq_this_cpu(unsigned int irq);
 
+/* JYW: 增加当前CPU对应软中断计数 */
 static inline void kstat_incr_softirqs_this_cpu(unsigned int irq)
 {
 	__this_cpu_inc(kstat.softirqs[irq]);
 }
 
+/* JYW: 增加某CPU对应软中断计数 */
 static inline unsigned int kstat_softirqs_cpu(unsigned int irq, int cpu)
 {
        return kstat_cpu(cpu).softirqs[irq];

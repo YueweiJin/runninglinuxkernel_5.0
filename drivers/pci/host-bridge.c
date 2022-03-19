@@ -9,6 +9,7 @@
 
 #include "pci.h"
 
+/* JYW: 找到root bus */
 static struct pci_bus *find_pci_root_bus(struct pci_bus *bus)
 {
 	while (bus->parent)
@@ -17,6 +18,7 @@ static struct pci_bus *find_pci_root_bus(struct pci_bus *bus)
 	return bus;
 }
 
+/* JYW: 找到root bus对应的pci_host_bridge */
 struct pci_host_bridge *pci_find_host_bridge(struct pci_bus *bus)
 {
 	struct pci_bus *root_bus = find_pci_root_bus(bus);
@@ -24,6 +26,7 @@ struct pci_host_bridge *pci_find_host_bridge(struct pci_bus *bus)
 	return to_pci_host_bridge(root_bus->bridge);
 }
 
+/* JYW: 获取root bus对应的pci_host_bridge */
 struct device *pci_get_host_bridge_device(struct pci_dev *dev)
 {
 	struct pci_bus *root_bus = find_pci_root_bus(dev->bus);

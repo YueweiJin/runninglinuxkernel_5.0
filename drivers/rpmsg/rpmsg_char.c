@@ -424,6 +424,10 @@ static int rpmsg_ctrldev_release(struct inode *inode, struct file *filp)
 	return 0;
 }
 
+/*
+ * JYW: 创建一个/dev/rpmsgX节点，表示的是一个端点设备
+ *      有对应的src和dst
+ */
 static long rpmsg_ctrldev_ioctl(struct file *fp, unsigned int cmd,
 				unsigned long arg)
 {
@@ -464,6 +468,7 @@ static void rpmsg_ctrldev_release_device(struct device *dev)
 	kfree(ctrldev);
 }
 
+/* JYW: 当有rpmsg_char设备挂到总线后，会生成一个/dev/rpmsg_ctrlX的节点 */
 static int rpmsg_chrdev_probe(struct rpmsg_device *rpdev)
 {
 	struct rpmsg_ctrldev *ctrldev;
@@ -561,7 +566,7 @@ static int rpmsg_char_init(void)
 		unregister_chrdev_region(rpmsg_major, RPMSG_DEV_MAX);
 		return PTR_ERR(rpmsg_class);
 	}
-
+    /* JYW: 注册rpmsg字符驱动 */
 	ret = register_rpmsg_driver(&rpmsg_chrdev_driver);
 	if (ret < 0) {
 		pr_err("rpmsgchr: failed to register rpmsg driver\n");

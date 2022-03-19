@@ -4869,6 +4869,7 @@ static inline void show_node(struct zone *zone)
 		printk("Node %d ", zone_to_nid(zone));
 }
 
+/* JYW: 空闲页面 + 文件映射页面 + 可回收页面 - 系统保留页面 */
 long si_mem_available(void)
 {
 	long available;

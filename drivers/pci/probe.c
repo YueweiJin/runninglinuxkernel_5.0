@@ -105,6 +105,7 @@ static struct class pcibus_class = {
 	.dev_groups	= pcibus_groups,
 };
 
+/* JYW: 创建/sys/class/pci_bus目录 */
 static int __init pcibus_class_init(void)
 {
 	return class_register(&pcibus_class);
@@ -198,9 +199,12 @@ int __pci_read_base(struct pci_dev *dev, enum pci_bar_type type,
 
 	res->name = pci_name(dev);
 
+    /* JYW: 先写全FF */
 	pci_read_config_dword(dev, pos, &l);
 	pci_write_config_dword(dev, pos, l | mask);
+    /* JYW: 再读取BAR大小 */
 	pci_read_config_dword(dev, pos, &sz);
+    /* JYW: 再写回旧值 */
 	pci_write_config_dword(dev, pos, l);
 
 	/*
@@ -220,6 +224,7 @@ int __pci_read_base(struct pci_dev *dev, enum pci_bar_type type,
 		l = 0;
 
 	if (type == pci_bar_unknown) {
+        /* JYW: 获取bar的属性 */
 		res->flags = decode_bar(dev, l);
 		res->flags |= IORESOURCE_SIZEALIGN;
 		if (res->flags & IORESOURCE_IO) {
@@ -316,12 +321,14 @@ int __pci_read_base(struct pci_dev *dev, enum pci_bar_type type,
 fail:
 	res->flags = 0;
 out:
+    /* JYW: 打印信息会体现每个BAR的属性和size大小 */
 	if (res->flags)
 		pci_printk(KERN_DEBUG, dev, "reg 0x%x: %pR\n", pos, res);
 
 	return (res->flags & IORESOURCE_MEM_64) ? 1 : 0;
 }
 
+/* JYW: 内存映射区域大小 */
 static void pci_read_bases(struct pci_dev *dev, unsigned int howmany, int rom)
 {
 	unsigned int pos, reg;
@@ -827,7 +834,7 @@ static int pci_register_host_bridge(struct pci_host_bridge *bridge)
 
 	bus->dev.class = &pcibus_class;
 	bus->dev.parent = bus->bridge;
-
+    /* JYW: host总线的名称：域编号：总线号 */
 	dev_set_name(&bus->dev, "%04x:%02x", pci_domain_nr(bus), bus->number);
 	name = dev_name(&bus->dev);
 
@@ -840,6 +847,7 @@ static int pci_register_host_bridge(struct pci_host_bridge *bridge)
 	/* Create legacy_io and legacy_mem files for this bus */
 	pci_create_legacy_files(bus);
 
+    /* JYW: 打印注册的host桥名称，接下来开始扫描 */
 	if (parent)
 		dev_info(parent, "PCI host bridge to bus %s\n", name);
 	else
@@ -1293,6 +1301,7 @@ EXPORT_SYMBOL(pci_scan_bridge);
  * Read interrupt line and base address registers.
  * The architecture-dependent code can tweak these, of course.
  */
+/* JYW: 获取中断线和中断号 */
 static void pci_read_irq(struct pci_dev *dev)
 {
 	unsigned char irq;
@@ -1303,7 +1312,13 @@ static void pci_read_irq(struct pci_dev *dev)
 		dev->irq = 0;
 		return;
 	}
-
+    /* JYW: 由接口设计者根据PCI设备使用的PCI 总线中断引脚(INTA# - INTD#)来设置：
+            如果设备使用INTA#脚来申请中断,
+            该寄存器应写入1；如果设备使用INTB#脚来申请中断,
+            该寄存器应写入2；如果设备使用INTC#脚来申请中断,
+            该寄存器应写入3 ;如果设备使用INTD#脚来申请中断,
+            该寄存器应写入4；
+    */
 	pci_read_config_byte(dev, PCI_INTERRUPT_PIN, &irq);
 	dev->pin = irq;
 	if (irq)
@@ -1496,6 +1511,7 @@ int pci_cfg_space_size(struct pci_dev *dev)
 	return PCI_CFG_SPACE_SIZE;
 }
 
+/* JYW: 获取设备配置空间的class信息 */
 static u32 pci_class(struct pci_dev *dev)
 {
 	u32 class;
@@ -1521,6 +1537,7 @@ static void pci_subsystem_ids(struct pci_dev *dev, u16 *vendor, u16 *device)
 	pci_read_config_word(dev, PCI_SUBSYSTEM_ID, device);
 }
 
+/* JYW: 获取配置空间的PCI_HEADER_TYPE */
 static u8 pci_hdr_type(struct pci_dev *dev)
 {
 	u8 hdr_type;
@@ -1579,6 +1596,7 @@ static int pci_intx_mask_broken(struct pci_dev *dev)
 	return 0;
 }
 
+/* JYW: 打印PCI设备的配置空间 */
 static void early_dump_pci_device(struct pci_dev *pdev)
 {
 	u32 value[256 / 4];
@@ -1603,6 +1621,7 @@ static void early_dump_pci_device(struct pci_dev *pdev)
  * Returns 0 on success and negative if unknown type of device (not normal,
  * bridge or CardBus).
  */
+/* JYW: 填充pci设备的class和map信息 */
 int pci_setup_device(struct pci_dev *dev)
 {
 	u32 class;
@@ -1622,6 +1641,7 @@ int pci_setup_device(struct pci_dev *dev)
 	dev->error_state = pci_channel_io_normal;
 	set_pcie_port_type(dev);
 
+    /* JYW: 分配一个slot号 */
 	pci_dev_assign_slot(dev);
 
 	/*
@@ -1630,18 +1650,24 @@ int pci_setup_device(struct pci_dev *dev)
 	 */
 	dev->dma_mask = 0xffffffff;
 
+    /* JYW: 设置struct pci_dev的名字，域编号：总线号：槽位号.功能号 */
 	dev_set_name(&dev->dev, "%04x:%02x:%02x.%d", pci_domain_nr(dev->bus),
 		     dev->bus->number, PCI_SLOT(dev->devfn),
 		     PCI_FUNC(dev->devfn));
 
+    /* JYW: 获取设备配置空间的class信息 */
 	class = pci_class(dev);
 
 	dev->revision = class & 0xff;
 	dev->class = class >> 8;		    /* upper 3 bytes */
-
+    /*
+     * JYW：打印设备的PID、VID以及类型
+     *   注意：由于是debug不会打印，但是dmesg可以看
+     */
 	pci_printk(KERN_DEBUG, dev, "[%04x:%04x] type %02x class %#08x\n",
 		   dev->vendor, dev->device, dev->hdr_type, dev->class);
 
+    /* JYW: 打印PCI设备的配置空间 */
 	if (pci_early_dump)
 		early_dump_pci_device(dev);
 
@@ -1679,6 +1705,7 @@ int pci_setup_device(struct pci_dev *dev)
 		if (class == PCI_CLASS_BRIDGE_PCI)
 			goto bad;
 		pci_read_irq(dev);
+        /* JYW: 内存映射区域大小 */
 		pci_read_bases(dev, 6, PCI_ROM_ADDRESS);
 
 		pci_subsystem_ids(dev, &dev->subsystem_vendor, &dev->subsystem_device);
@@ -1738,6 +1765,7 @@ int pci_setup_device(struct pci_dev *dev)
 		 */
 		pci_read_irq(dev);
 		dev->transparent = ((dev->class & 0xff) == 1);
+        /* JYW: 内存映射区域大小 */
 		pci_read_bases(dev, 2, PCI_ROM_ADDRESS1);
 		set_pcie_hotplug_bridge(dev);
 		pos = pci_find_capability(dev, PCI_CAP_ID_SSVID);
@@ -2180,6 +2208,7 @@ static void pci_release_dev(struct device *dev)
 	kfree(pci_dev);
 }
 
+/* JYW: 分配一个pci设备 */
 struct pci_dev *pci_alloc_dev(struct pci_bus *bus)
 {
 	struct pci_dev *dev;
@@ -2245,6 +2274,7 @@ static bool pci_bus_wait_crs(struct pci_bus *bus, int devfn, u32 *l,
 	return true;
 }
 
+/* JYW: 读取PCI_VENDOR_ID */
 bool pci_bus_generic_read_dev_vendor_id(struct pci_bus *bus, int devfn, u32 *l,
 					int timeout)
 {
@@ -2262,6 +2292,7 @@ bool pci_bus_generic_read_dev_vendor_id(struct pci_bus *bus, int devfn, u32 *l,
 	return true;
 }
 
+/* JYW: 读取PCI_VENDOR_ID */
 bool pci_bus_read_dev_vendor_id(struct pci_bus *bus, int devfn, u32 *l,
 				int timeout)
 {
@@ -2285,14 +2316,17 @@ EXPORT_SYMBOL(pci_bus_read_dev_vendor_id);
  * Read the config data for a PCI device, sanity-check it,
  * and fill in the dev structure.
  */
+/* JYW: 扫描一个设备 */
 static struct pci_dev *pci_scan_device(struct pci_bus *bus, int devfn)
 {
 	struct pci_dev *dev;
 	u32 l;
 
+    /* JYW: 读取PCI_VENDOR_ID */
 	if (!pci_bus_read_dev_vendor_id(bus, devfn, &l, 60*1000))
 		return NULL;
 
+    /* JYW: 分配一个pci设备 */
 	dev = pci_alloc_dev(bus);
 	if (!dev)
 		return NULL;
@@ -2303,6 +2337,7 @@ static struct pci_dev *pci_scan_device(struct pci_bus *bus, int devfn)
 
 	pci_set_of_node(dev);
 
+    /* JYW: 填充pci设备的class和map信息 */
 	if (pci_setup_device(dev)) {
 		pci_bus_put(dev->bus);
 		kfree(dev);
@@ -2416,6 +2451,7 @@ static void pci_set_msi_domain(struct pci_dev *dev)
 	dev_set_msi_domain(&dev->dev, d);
 }
 
+/* JYW: 向系统注册pci device */
 void pci_device_add(struct pci_dev *dev, struct pci_bus *bus)
 {
 	int ret;
@@ -2434,6 +2470,7 @@ void pci_device_add(struct pci_dev *dev, struct pci_bus *bus)
 	dma_set_seg_boundary(&dev->dev, 0xffffffff);
 
 	/* Fix up broken headers */
+    /* JYW: 执行fixup钩子函数 */
 	pci_fixup_device(pci_fixup_header, dev);
 
 	/* Moved out from quirk header fixup code */
@@ -2465,6 +2502,7 @@ void pci_device_add(struct pci_dev *dev, struct pci_bus *bus)
 	WARN_ON(ret < 0);
 }
 
+/* JYW：扫描单个PCI设备 */
 struct pci_dev *pci_scan_single_device(struct pci_bus *bus, int devfn)
 {
 	struct pci_dev *dev;
@@ -2475,10 +2513,12 @@ struct pci_dev *pci_scan_single_device(struct pci_bus *bus, int devfn)
 		return dev;
 	}
 
+    /* JYW: 扫描一个设备 */
 	dev = pci_scan_device(bus, devfn);
 	if (!dev)
 		return NULL;
 
+    /* JYW: 向系统注册pci device */
 	pci_device_add(dev, bus);
 
 	return dev;
@@ -2550,6 +2590,7 @@ static int only_one_child(struct pci_bus *bus)
  *
  * Returns the number of new devices found.
  */
+/* JYW: 扫描一个PCI的槽位下面的设备 */
 int pci_scan_slot(struct pci_bus *bus, int devfn)
 {
 	unsigned fn, nr = 0;
@@ -2558,13 +2599,15 @@ int pci_scan_slot(struct pci_bus *bus, int devfn)
 	if (only_one_child(bus) && (devfn > 0))
 		return 0; /* Already scanned the entire slot */
 
+    /* JYW：扫描单个PCI设备 */
 	dev = pci_scan_single_device(bus, devfn);
 	if (!dev)
 		return 0;
 	if (!pci_dev_is_added(dev))
 		nr++;
-
+    /* JYW: 扫描不同的功能 */
 	for (fn = next_fn(bus, dev, 0); fn > 0; fn = next_fn(bus, dev, fn)) {
+        /* JYW：扫描单个PCI设备 */
 		dev = pci_scan_single_device(bus, devfn + fn);
 		if (dev) {
 			if (!pci_dev_is_added(dev))
@@ -2762,6 +2805,7 @@ void __weak pcibios_fixup_bus(struct pci_bus *bus)
  * equally between hotplug-capable bridges to allow future extension of the
  * hierarchy.
  */
+/* JYW: 扫描总线下的设备，包括子总线 */
 static unsigned int pci_scan_child_bus_extend(struct pci_bus *bus,
 					      unsigned int available_buses)
 {
@@ -2775,6 +2819,7 @@ static unsigned int pci_scan_child_bus_extend(struct pci_bus *bus,
 
 	/* Go find them, Rover! */
 	for (devfn = 0; devfn < 256; devfn += 8) {
+        /* JYW: 扫描一个PCI的槽位下面的设备 */
 		nr_devs = pci_scan_slot(bus, devfn);
 
 		/*
@@ -2810,6 +2855,7 @@ static unsigned int pci_scan_child_bus_extend(struct pci_bus *bus,
 	 * are on this bus. We will distribute the additional available
 	 * buses between hotplug bridges.
 	 */
+    /* JYW: 遍历总线下所有的桥 */
 	for_each_pci_bridge(dev, bus) {
 		if (dev->is_hotplug_bridge)
 			hotplug_bridges++;
@@ -2822,6 +2868,7 @@ static unsigned int pci_scan_child_bus_extend(struct pci_bus *bus,
 	 * unless they are misconfigured (which will be done in the second
 	 * scan below).
 	 */
+    /* JYW: 遍历总线下所有的桥 */
 	for_each_pci_bridge(dev, bus) {
 		cmax = max;
 		max = pci_scan_bridge_extend(bus, dev, max, 0, 0);
@@ -2836,6 +2883,7 @@ static unsigned int pci_scan_child_bus_extend(struct pci_bus *bus,
 	}
 
 	/* Scan bridges that need to be reconfigured */
+    /* JYW: 遍历总线下所有的桥 */
 	for_each_pci_bridge(dev, bus) {
 		unsigned int buses = 0;
 
@@ -2903,6 +2951,7 @@ static unsigned int pci_scan_child_bus_extend(struct pci_bus *bus,
  * Scans devices below @bus including subordinate buses. Returns new
  * subordinate number including all the found devices.
  */
+/* JYW: 扫描总线下的设备，包括子总线 */
 unsigned int pci_scan_child_bus(struct pci_bus *bus)
 {
 	return pci_scan_child_bus_extend(bus, 0);
@@ -3054,6 +3103,7 @@ void pci_bus_release_busn_res(struct pci_bus *b)
 			res, ret ? "can not be" : "is");
 }
 
+/* JYW: 发起总线扫描 */
 int pci_scan_root_bus_bridge(struct pci_host_bridge *bridge)
 {
 	struct resource_entry *window;
@@ -3077,6 +3127,7 @@ int pci_scan_root_bus_bridge(struct pci_host_bridge *bridge)
 	b = bridge->bus;
 	bus = bridge->busnr;
 
+    /* JYW: 若找不到bus资源，则会提示 */
 	if (!found) {
 		dev_info(&b->dev,
 		 "No busn resource found for root bus, will use [bus %02x-ff]\n",

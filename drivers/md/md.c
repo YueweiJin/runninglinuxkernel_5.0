@@ -5318,6 +5318,7 @@ static int md_alloc(dev_t dev, char *name)
 		mddev->hold_active = UNTIL_STOP;
 
 	error = -ENOMEM;
+    /* JYW: 分配请求队列 */
 	mddev->queue = blk_alloc_queue(GFP_KERNEL);
 	if (!mddev->queue)
 		goto abort;

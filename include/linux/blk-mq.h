@@ -98,14 +98,20 @@ struct blk_mq_tag_set {
 	 */
 	struct blk_mq_queue_map	map[HCTX_MAX_TYPES];
 	unsigned int		nr_maps;	/* nr entries in map[] */
+    /* JYW: loop : loop_mq_ops */
 	const struct blk_mq_ops	*ops;
+    /* JYW: loop : 1 */
 	unsigned int		nr_hw_queues;	/* nr hw queues across maps */
+    /* JYW: loop : 128 */
 	unsigned int		queue_depth;	/* max hw supported */
 	unsigned int		reserved_tags;
+    /* JYW: loop : sizeof(struct loop_cmd) */
 	unsigned int		cmd_size;	/* per-request extra data */
 	int			numa_node;
 	unsigned int		timeout;
+    /* JYW: loop : BLK_MQ_F_SHOULD_MERGE | BLK_MQ_F_SG_MERGE */
 	unsigned int		flags;		/* BLK_MQ_F_* */
+    /* JYW: struct loop_device */
 	void			*driver_data;
 
 	struct blk_mq_tags	**tags;
@@ -145,6 +151,7 @@ struct blk_mq_ops {
 	/*
 	 * Queue request
 	 */
+    /* JYW: loop : loop_queue_rq */
 	queue_rq_fn		*queue_rq;
 
 	/*
@@ -176,6 +183,7 @@ struct blk_mq_ops {
 	poll_fn			*poll;
 
     /* JYW: scsi_softirq_done */
+    /* JYW: loop : lo_complete_rq */
 	complete_fn		*complete;
 
 	/*
@@ -195,6 +203,7 @@ struct blk_mq_ops {
 	 *
 	 * Ditto for exit/teardown.
 	 */
+    /* JYW: loop : loop_init_request */
 	init_request_fn		*init_request;
 	exit_request_fn		*exit_request;
 	/* Called from inside blk_get_request() */

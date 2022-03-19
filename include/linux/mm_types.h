@@ -85,6 +85,9 @@ struct page {
 			 */
 			struct list_head lru;
 			/* See page-flags.h for PAGE_MAPPING_FLAGS */
+            /*
+             *  JYW: 如果是匿名页面，mapping =    vma->anon_vma; (from: __page_set_anon_rmap)
+             */
 			struct address_space *mapping;
 			pgoff_t index;		/* Our offset within mapping. */
 			/**

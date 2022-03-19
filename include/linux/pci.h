@@ -286,6 +286,7 @@ struct pci_p2pdma;
 /* The pci_dev structure describes PCI devices */
 struct pci_dev {
 	struct list_head bus_list;	/* Node in per-bus list */
+    /* JYW: from pci_alloc_dev */
 	struct pci_bus	*bus;		/* Bus this device is on */
 	struct pci_bus	*subordinate;	/* Bus this device bridges to */
 
@@ -298,8 +299,13 @@ struct pci_dev {
 	unsigned short	device;
 	unsigned short	subsystem_vendor;
 	unsigned short	subsystem_device;
+    /* JYW: 设备配置空间的class的类型 */
 	unsigned int	class;		/* 3 bytes: (base,sub,prog-if) */
+    /* JYW: 设备配置空间的class的版本号 */
 	u8		revision;	/* PCI revision, low byte of class word */
+    /*
+     * JYW: PCI_HEADER_TYPE_NORMAL PCI_HEADER_TYPE_BRIDGE PCI_HEADER_TYPE_CARDBUS
+     */
 	u8		hdr_type;	/* PCI header type (`multi' flag masked out) */
 #ifdef CONFIG_PCIEAER
 	u16		aer_cap;	/* AER capability offset */
@@ -310,6 +316,13 @@ struct pci_dev {
 	u8		msix_cap;	/* MSI-X capability offset */
 	u8		pcie_mpss:3;	/* PCIe Max Payload Size Supported */
 	u8		rom_base_reg;	/* Config register controlling ROM */
+    /* JYW: 由接口设计者根据PCI设备使用的PCI 总线中断引脚(INTA# - INTD#)来设置：
+            如果设备使用INTA#脚来申请中断,
+            该寄存器应写入1；如果设备使用INTB#脚来申请中断,
+            该寄存器应写入2；如果设备使用INTC#脚来申请中断,
+            该寄存器应写入3 ;如果设备使用INTD#脚来申请中断,
+            该寄存器应写入4；
+    */
 	u8		pin;		/* Interrupt pin this device uses */
 	u16		pcie_flags_reg;	/* Cached PCIe Capabilities Register */
 	unsigned long	*dma_alias_mask;/* Mask of enabled devfn aliases */
@@ -359,6 +372,7 @@ struct pci_dev {
 	unsigned int	eetlp_prefix_path:1;	/* End-to-End TLP Prefix */
 
 	pci_channel_state_t error_state;	/* Current connectivity state */
+    /* JYW: struct pci_dev (from: pci_setup_device) */
 	struct device	dev;			/* Generic device interface */
 
 	int		cfg_size;		/* Size of config space */
@@ -557,22 +571,27 @@ struct pci_bus_resource {
 
 struct pci_bus {
 	struct list_head node;		/* Node in list of buses */
+    /* JYW: 可通过该属性索引到上层PCI总线 */
 	struct pci_bus	*parent;	/* Parent bus this bridge is on */
+    /* JYW: 该属性标志了总线连接的所有 PCI 子总线链表 */
 	struct list_head children;	/* List of child buses */
+    /* JYW: 该属性标志了总线连接的所有 PCI 设备链表 */
 	struct list_head devices;	/* List of devices on this bus */
+    /* JYW: 该属性标志了连接的上行PCI 桥 */
 	struct pci_dev	*self;		/* Bridge device as seen by parent */
 	struct list_head slots;		/* List of slots on this bus;
 					   protected by pci_slot_mutex */
 	struct resource *resource[PCI_BRIDGE_RESOURCE_NUM];
 	struct list_head resources;	/* Address space routed to this bus */
 	struct resource busn_res;	/* Bus numbers routed to this bus */
-
+    /* JYW: 该属性标志了总线上所有 PCI 设备的配制空间读写操作函数 */
 	struct pci_ops	*ops;		/* Configuration access functions */
 	struct msi_controller *msi;	/* MSI controller */
 	void		*sysdata;	/* Hook for sys-specific extension */
 	struct proc_dir_entry *procdir;	/* Directory entry in /proc/bus/pci */
-
+    /* JYW: 该属性标志了当前 PCI 总线的编号 */
 	unsigned char	number;		/* Bus number */
+    /* JYW: 该属性标志了 PCI 上行总线编号 */
 	unsigned char	primary;	/* Number of primary bridge */
 	unsigned char	max_bus_speed;	/* enum pci_bus_speed */
 	unsigned char	cur_bus_speed;	/* enum pci_bus_speed */
@@ -601,6 +620,7 @@ struct pci_bus {
  * This is incorrect because "virtual" buses added for SR-IOV (via
  * virtfn_add_bus()) have "bus->self == NULL" but are not root buses.
  */
+/* JYW: 判断是否是root bus */
 static inline bool pci_is_root_bus(struct pci_bus *pbus)
 {
 	return !(pbus->parent);
@@ -613,16 +633,19 @@ static inline bool pci_is_root_bus(struct pci_bus *pbus)
  * Return true if the PCI device is bridge whether it has subordinate
  * or not.
  */
+/* JYW: 判断是否是桥 */
 static inline bool pci_is_bridge(struct pci_dev *dev)
 {
 	return dev->hdr_type == PCI_HEADER_TYPE_BRIDGE ||
 		dev->hdr_type == PCI_HEADER_TYPE_CARDBUS;
 }
 
+/* JYW: 遍历总线下所有的桥 */
 #define for_each_pci_bridge(dev, bus)				\
 	list_for_each_entry(dev, &bus->devices, bus_list)	\
 		if (!pci_is_bridge(dev)) {} else
 
+/* JYW: 获取设备的上行桥 */
 static inline struct pci_dev *pci_upstream_bridge(struct pci_dev *dev)
 {
 	dev = pci_physfn(dev);
@@ -1767,7 +1790,9 @@ int pci_iobar_pfn(struct pci_dev *pdev, int bar, struct vm_area_struct *vma);
  * These helpers provide future and backwards compatibility
  * for accessing popular PCI BAR info
  */
+/* JYW: 获取BAR的起始地址 */
 #define pci_resource_start(dev, bar)	((dev)->resource[(bar)].start)
+/* JYW: 获取BAR的结束地址 */
 #define pci_resource_end(dev, bar)	((dev)->resource[(bar)].end)
 #define pci_resource_flags(dev, bar)	((dev)->resource[(bar)].flags)
 #define pci_resource_len(dev,bar) \

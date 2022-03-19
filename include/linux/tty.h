@@ -172,6 +172,7 @@ struct tty_bufhead {
 #define L_ISIG(tty)	_L_FLAG((tty), ISIG)
 #define L_ICANON(tty)	_L_FLAG((tty), ICANON)
 #define L_XCASE(tty)	_L_FLAG((tty), XCASE)
+/* JYW: 如果设置了回显模式 */
 #define L_ECHO(tty)	_L_FLAG((tty), ECHO)
 #define L_ECHOE(tty)	_L_FLAG((tty), ECHOE)
 #define L_ECHOK(tty)	_L_FLAG((tty), ECHOK)

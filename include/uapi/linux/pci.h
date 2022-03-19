@@ -28,6 +28,7 @@
  *	7:3 = slot
  *	2:0 = function
  */
+/* JYW: 这里定义了slot的概念，代表最小的功能，物理上表示插槽 */
 #define PCI_DEVFN(slot, func)	((((slot) & 0x1f) << 3) | ((func) & 0x07))
 #define PCI_SLOT(devfn)		(((devfn) >> 3) & 0x1f)
 #define PCI_FUNC(devfn)		((devfn) & 0x07)

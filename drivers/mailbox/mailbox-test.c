@@ -94,6 +94,7 @@ static int mbox_test_message_fasync(int fd, struct file *filp, int on)
 	return fasync_helper(fd, filp, on, &tdev->async_queue);
 }
 
+/* JYW: 写消息 */
 static ssize_t mbox_test_message_write(struct file *filp,
 				       const char __user *userbuf,
 				       size_t count, loff_t *ppos)
@@ -163,6 +164,7 @@ static bool mbox_test_message_data_ready(struct mbox_test_device *tdev)
 	return data_ready;
 }
 
+/* 读取消息 */
 static ssize_t mbox_test_message_read(struct file *filp, char __user *userbuf,
 				      size_t count, loff_t *ppos)
 {
@@ -189,7 +191,7 @@ static ssize_t mbox_test_message_read(struct file *filp, char __user *userbuf,
 
 	do {
 		__set_current_state(TASK_INTERRUPTIBLE);
-
+        /* JYW: 如果数据没就绪，就一直阻塞 */
 		if (mbox_test_message_data_ready(tdev))
 			break;
 
@@ -208,6 +210,7 @@ static ssize_t mbox_test_message_read(struct file *filp, char __user *userbuf,
 
 	spin_lock_irqsave(&tdev->lock, flags);
 
+    /* JYW: 读取消息 */
 	ptr = tdev->rx_buffer;
 	while (l < MBOX_HEXDUMP_MAX_LEN) {
 		hex_dump_to_buffer(ptr,
@@ -277,6 +280,7 @@ static int mbox_test_add_debugfs(struct platform_device *pdev,
 	return 0;
 }
 
+/* JYW：收到消息后，数据就绪，唤醒进程 */
 static void mbox_test_receive_message(struct mbox_client *client, void *message)
 {
 	struct mbox_test_device *tdev = dev_get_drvdata(client->dev);

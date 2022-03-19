@@ -289,6 +289,11 @@ restart:
 		kstat_incr_softirqs_this_cpu(vec_nr);
 
 		trace_softirq_entry(vec_nr);
+        /* JYW: 
+         *  TASKLET_SOFTIRQ : tasklet_action (from: softirq_init)
+         *  HI_SOFTIRQ : tasklet_hi_action (from: tasklet_hi_action)
+         *  NET_RX_SOFTIRQ : net_rx_action (from: net_dev_init)
+         */
 		h->action(h);
 		trace_softirq_exit(vec_nr);
 		if (unlikely(prev_count != preempt_count())) {

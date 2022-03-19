@@ -191,6 +191,7 @@ struct vring_virtqueue {
 	};
 
 	/* How to notify other side. FIXME: commonalize hcalls! */
+    /* JYW: vp_notify */
 	bool (*notify)(struct virtqueue *vq);
 
 	/* DMA, allocation, and size information */
@@ -673,6 +674,7 @@ static inline bool more_used_split(const struct vring_virtqueue *vq)
 			vq->split.vring.used->idx);
 }
 
+/* JYW: 获得下一个可用的buffer */
 static void *virtqueue_get_buf_ctx_split(struct virtqueue *_vq,
 					 unsigned int *len,
 					 void **ctx)
@@ -1834,6 +1836,7 @@ EXPORT_SYMBOL_GPL(virtqueue_kick_prepare);
  *
  * Returns false if host notify failed or queue is broken, otherwise true.
  */
+/* JYW: 用于通知host */
 bool virtqueue_notify(struct virtqueue *_vq)
 {
 	struct vring_virtqueue *vq = to_vvq(_vq);
@@ -2123,6 +2126,7 @@ struct virtqueue *__vring_new_virtqueue(unsigned int index,
 }
 EXPORT_SYMBOL_GPL(__vring_new_virtqueue);
 
+/* JYW: 创建一个虚拟队列 */
 struct virtqueue *vring_create_virtqueue(
 	unsigned int index,
 	unsigned int num,
@@ -2148,6 +2152,7 @@ struct virtqueue *vring_create_virtqueue(
 EXPORT_SYMBOL_GPL(vring_create_virtqueue);
 
 /* Only available for split ring */
+/* JYW: 创建一个虚拟队列 */
 struct virtqueue *vring_new_virtqueue(unsigned int index,
 				      unsigned int num,
 				      unsigned int vring_align,

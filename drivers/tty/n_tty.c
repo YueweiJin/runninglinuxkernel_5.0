@@ -109,6 +109,7 @@ struct n_tty_data {
 	/* shared by producer and consumer */
 	char read_buf[N_TTY_BUF_SIZE];
 	DECLARE_BITMAP(read_flags, N_TTY_BUF_SIZE);
+    /* JYW: 回显缓冲区 */
 	unsigned char echo_buf[N_TTY_BUF_SIZE];
 
 	/* consumer-published */
@@ -141,12 +142,14 @@ static inline unsigned char *read_buf_addr(struct n_tty_data *ldata, size_t i)
 	return &ldata->read_buf[i & (N_TTY_BUF_SIZE - 1)];
 }
 
+/* JYW: 获取回显缓冲区某偏移的字符 */
 static inline unsigned char echo_buf(struct n_tty_data *ldata, size_t i)
 {
 	smp_rmb(); /* Matches smp_wmb() in add_echo_byte(). */
 	return ldata->echo_buf[i & (N_TTY_BUF_SIZE - 1)];
 }
 
+/* JYW: 获取回显缓冲区起始地址 */
 static inline unsigned char *echo_buf_addr(struct n_tty_data *ldata, size_t i)
 {
 	return &ldata->echo_buf[i & (N_TTY_BUF_SIZE - 1)];
@@ -620,7 +623,7 @@ break_out:
  *
  *	Locking: callers must hold output_lock
  */
-
+/* JYW: 处理回显字符 */
 static size_t __process_echoes(struct tty_struct *tty)
 {
 	struct n_tty_data *ldata = tty->disc_data;
@@ -632,6 +635,7 @@ static size_t __process_echoes(struct tty_struct *tty)
 
 	tail = ldata->echo_tail;
 	while (MASK(ldata->echo_commit) != MASK(tail)) {
+        /* JYW: 获取回显缓冲区某偏移的字符 */
 		c = echo_buf(ldata, tail);
 		if (c == ECHO_OP_START) {
 			unsigned char op;
@@ -818,6 +822,7 @@ static void flush_echoes(struct tty_struct *tty)
 {
 	struct n_tty_data *ldata = tty->disc_data;
 
+    /* JYW: 如果没有设置回显模式 或者 回显结束 */
 	if ((!L_ECHO(tty) && !L_ECHONL(tty)) ||
 	    ldata->echo_commit == ldata->echo_head)
 		return;

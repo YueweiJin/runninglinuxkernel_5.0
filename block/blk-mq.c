@@ -666,6 +666,7 @@ int blk_mq_request_started(struct request *rq)
 }
 EXPORT_SYMBOL_GPL(blk_mq_request_started);
 
+/* JYW: 启动请求 */
 void blk_mq_start_request(struct request *rq)
 {
 	struct request_queue *q = rq->q;

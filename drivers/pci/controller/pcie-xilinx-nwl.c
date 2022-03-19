@@ -792,6 +792,7 @@ static int nwl_pcie_parse_dt(struct nwl_pcie *pcie,
 	pcie->phys_pcie_reg_base = res->start;
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "cfg");
+    /* JYW: 配置空间的基地址 */
 	pcie->ecam_base = devm_pci_remap_cfg_resource(dev, res);
 	if (IS_ERR(pcie->ecam_base))
 		return PTR_ERR(pcie->ecam_base);
@@ -826,6 +827,7 @@ static int nwl_pcie_probe(struct platform_device *pdev)
 	resource_size_t iobase = 0;
 	LIST_HEAD(res);
 
+    /* JYW: 分配一个pci_host_bridge结构体 */
 	bridge = devm_pci_alloc_host_bridge(dev, sizeof(*pcie));
 	if (!bridge)
 		return -ENODEV;
@@ -835,12 +837,12 @@ static int nwl_pcie_probe(struct platform_device *pdev)
 	pcie->dev = dev;
 	pcie->ecam_value = NWL_ECAM_VALUE_DEFAULT;
 
+    /* JYW: 解析设备树获取参数 */
 	err = nwl_pcie_parse_dt(pcie, pdev);
 	if (err) {
 		dev_err(dev, "Parsing DT failed\n");
 		return err;
 	}
-
 	err = nwl_pcie_bridge_init(pcie);
 	if (err) {
 		dev_err(dev, "HW Initialization failed\n");
@@ -879,7 +881,7 @@ static int nwl_pcie_probe(struct platform_device *pdev)
 			goto error;
 		}
 	}
-
+    /* JYW: 发起总线扫描 */
 	err = pci_scan_root_bus_bridge(bridge);
 	if (err)
 		goto error;

@@ -397,7 +397,11 @@ struct request_queue {
 
 	struct blk_queue_stats	*stats;
 	struct rq_qos		*rq_qos;
-
+    /* JYW:
+     *  blk : blk_mq_make_request (from : blk_mq_init_allocated_queue)
+     *  md : md_make_request (from ：md_alloc)
+     *  zram : zram_make_request (from : zram_add)
+     */
 	make_request_fn		*make_request_fn;
 	dma_drain_needed_fn	*dma_drain_needed;
 
@@ -419,6 +423,7 @@ struct request_queue {
 	 * The queue owner gets to use this for whatever they like.
 	 * ll_rw_blk doesn't touch it.
 	 */
+    /* JYW: loop : struct loop_device */
 	void			*queuedata;
 
 	/*
@@ -533,6 +538,7 @@ struct request_queue {
 
 	struct list_head	requeue_list;
 	spinlock_t		requeue_lock;
+    /* JYW: blk_mq_requeue_work (from: blk_mq_init_allocated_queue) */
 	struct delayed_work	requeue_work;
 
 	struct mutex		sysfs_lock;

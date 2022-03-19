@@ -184,11 +184,12 @@ struct gendisk {
 	/* major, first_minor and minors are input parameters only,
 	 * don't use directly.  Use disk_devt() and disk_max_parts().
 	 */
+    /* JYW: loop : LOOP_MAJOR */
 	int major;			/* major number of driver */
 	int first_minor;
 	int minors;                     /* maximum number of minors, =1 for
                                          * disks that can't be partitioned. */
-
+    /* JYW: loop : loop%d */
 	char disk_name[DISK_NAME_LEN];	/* name of major driver */
 	char *(*devnode)(struct gendisk *gd, umode_t *mode);
 
@@ -203,9 +204,10 @@ struct gendisk {
 	struct disk_part_tbl __rcu *part_tbl;
 	/* JYW: 对应主分区 */
 	struct hd_struct part0;
-
+    /* JYW: loop : lo_fops */
 	const struct block_device_operations *fops;
 	struct request_queue *queue;
+    /* JYW: loop : struct loop_device */
 	void *private_data;
 
 	int flags;

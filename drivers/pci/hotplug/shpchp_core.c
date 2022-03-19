@@ -330,6 +330,7 @@ static int __init shpcd_init(void)
 
 	retval = pci_register_driver(&shpc_driver);
 	dbg("%s: pci_register_driver = %d\n", __func__, retval);
+    /* JYW：shpchp: Standard Hot Plug PCI Controller Driver version: 0.4 */
 	info(DRIVER_DESC " version: " DRIVER_VERSION "\n");
 
 	return retval;
