@@ -32,6 +32,7 @@ struct kvm_io_device_ops {
 		    gpa_t addr,
 		    int len,
 		    void *val);
+	/* JYW: ioeventfd_write */
 	int (*write)(struct kvm_vcpu *vcpu,
 		     struct kvm_io_device *this,
 		     gpa_t addr,
@@ -63,6 +64,7 @@ static inline int kvm_iodevice_write(struct kvm_vcpu *vcpu,
 				     struct kvm_io_device *dev, gpa_t addr,
 				     int l, const void *v)
 {
+	/* JYW: ioeventfd_write */
 	return dev->ops->write ? dev->ops->write(vcpu, dev, addr, l, v)
 				 : -EOPNOTSUPP;
 }

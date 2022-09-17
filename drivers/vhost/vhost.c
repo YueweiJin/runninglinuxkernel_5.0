@@ -254,6 +254,7 @@ void vhost_poll_flush(struct vhost_poll *poll)
 }
 EXPORT_SYMBOL_GPL(vhost_poll_flush);
 
+/* JYW: 加入到工作者链表 */
 void vhost_work_queue(struct vhost_dev *dev, struct vhost_work *work)
 {
 	if (!dev->worker)
@@ -359,6 +360,8 @@ static int vhost_worker(void *data)
 		llist_for_each_entry_safe(work, work_next, node, node) {
 			clear_bit(VHOST_WORK_QUEUED, &work->flags);
 			__set_current_state(TASK_RUNNING);
+			/* JYW: vhost_blk_handle_host_kick */
+			/* JYW: vhost_blk_handle_guest_kick */
 			work->fn(work);
 			if (need_resched())
 				schedule();

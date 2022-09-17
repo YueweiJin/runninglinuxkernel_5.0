@@ -71,7 +71,7 @@ struct vhost_blk {
 	struct vhost_virtqueue vq;
 	struct llist_head llhead;
 	atomic_t req_inflight[2];
-	/* JYW： vhost_blk_handle_host_kick */
+	/* JYW： vhost_blk_handle_host_kick  from: vhost_blk_req_done()->vhost_work_queue(&blk->dev, &blk->work) */
 	struct vhost_work work;
 	spinlock_t flush_lock;
 	struct vhost_dev dev;

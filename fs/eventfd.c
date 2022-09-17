@@ -51,6 +51,7 @@ struct eventfd_ctx {
  * Returns the amount by which the counter was incremented.  This will be less
  * than @n if the counter has overflowed.
  */
+/* JYW: 增加count计数并唤醒所有的等待者 */
 __u64 eventfd_signal(struct eventfd_ctx *ctx, __u64 n)
 {
 	unsigned long flags;
@@ -194,6 +195,7 @@ int eventfd_ctx_remove_wait_queue(struct eventfd_ctx *ctx, wait_queue_entry_t *w
 }
 EXPORT_SYMBOL_GPL(eventfd_ctx_remove_wait_queue);
 
+/* JYW: */
 static ssize_t eventfd_read(struct file *file, char __user *buf, size_t count,
 			    loff_t *ppos)
 {
@@ -213,6 +215,7 @@ static ssize_t eventfd_read(struct file *file, char __user *buf, size_t count,
 		__add_wait_queue(&ctx->wqh, &wait);
 		for (;;) {
 			set_current_state(TASK_INTERRUPTIBLE);
+			/* JYW: 只有当count计数大于0时才退出休眠 */
 			if (ctx->count > 0) {
 				res = sizeof(ucnt);
 				break;
@@ -230,6 +233,7 @@ static ssize_t eventfd_read(struct file *file, char __user *buf, size_t count,
 	}
 	if (likely(res > 0)) {
 		eventfd_ctx_do_read(ctx, &ucnt);
+		/* JYW: 唤醒所有的读者 */
 		if (waitqueue_active(&ctx->wqh))
 			wake_up_locked_poll(&ctx->wqh, EPOLLOUT);
 	}
@@ -380,6 +384,7 @@ struct eventfd_ctx *eventfd_ctx_fileget(struct file *file)
 }
 EXPORT_SYMBOL_GPL(eventfd_ctx_fileget);
 
+/* JYW: do_eventfd系统调用实现 */
 static int do_eventfd(unsigned int count, int flags)
 {
 	struct eventfd_ctx *ctx;
@@ -397,10 +402,12 @@ static int do_eventfd(unsigned int count, int flags)
 		return -ENOMEM;
 
 	kref_init(&ctx->kref);
+	/* JYW: 初始化等待队列 */
 	init_waitqueue_head(&ctx->wqh);
+	/* JYW: 初始化统计计数 */
 	ctx->count = count;
 	ctx->flags = flags;
-
+    /* JYW: 分配一个匿名inode，返回fd；对fd的读写操作方法为eventfd_fops */
 	fd = anon_inode_getfd("[eventfd]", &eventfd_fops, ctx,
 			      O_RDWR | (flags & EFD_SHARED_FCNTL_FLAGS));
 	if (fd < 0)

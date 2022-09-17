@@ -19,7 +19,8 @@ typedef void (*vhost_work_fn_t)(struct vhost_work *work);
 #define VHOST_WORK_QUEUED 1
 struct vhost_work {
 	struct llist_node	  node;
-	/* JYW：vhost_blk_handle_host_kick */
+	/* JYW：vhost-blk: vhost_blk_handle_host_kick */
+	/* JYW: vhost-blk: vhost_blk_handle_guest_kick */
 	vhost_work_fn_t		  fn;
 	unsigned long		  flags;
 };
@@ -27,9 +28,12 @@ struct vhost_work {
 /* Poll a file (eventfd or socket) */
 /* Note: there's nothing vhost specific about this structure. */
 struct vhost_poll {
+	/* JYW: fuction: vhost_poll_func */
 	poll_table                table;
 	wait_queue_head_t        *wqh;
+	/* JYW: fuction: vhost_poll_wakeup */
 	wait_queue_entry_t              wait;
+	/* JYW: vhost-blk: vhost_blk_handle_guest_kick  */
 	struct vhost_work	  work;
 	__poll_t		  mask;
 	struct vhost_dev	 *dev;
@@ -92,6 +96,7 @@ struct vhost_virtqueue {
 	struct vring_avail __user *avail;
 	struct vring_used __user *used;
 	const struct vhost_umem_node *meta_iotlb[VHOST_NUM_ADDRS];
+	/* JYW: eventfd_fget(f.fd) */
 	struct file *kick;
 	struct eventfd_ctx *call_ctx;
 	struct eventfd_ctx *error_ctx;
@@ -100,7 +105,7 @@ struct vhost_virtqueue {
 	struct vhost_poll poll;
 
 	/* The routine to call when the Guest pings us, or timeout. */
-	/* JYW: vhost-blk: vhost_blk_handle_guest_kick */
+	/* JYW: vhost-blk: vhost_blk_handle_guest_kick  from vhost_blk_open() */
 	vhost_work_fn_t handle_kick;
 
 	/* Last available index we saw. */
@@ -165,6 +170,7 @@ struct vhost_dev {
 	int nvqs;
 	struct eventfd_ctx *log_ctx;
 	struct llist_head work_list;
+	/* JYW: vhost_worker vhost-%pid */
 	struct task_struct *worker;
 	struct vhost_umem *umem;
 	struct vhost_umem *iotlb;
