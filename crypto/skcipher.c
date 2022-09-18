@@ -939,6 +939,7 @@ int crypto_grab_skcipher(struct crypto_skcipher_spawn *spawn,
 }
 EXPORT_SYMBOL_GPL(crypto_grab_skcipher);
 
+/* JYW: 分配一个对称算法句柄 */
 struct crypto_skcipher *crypto_alloc_skcipher(const char *alg_name,
 					      u32 type, u32 mask)
 {

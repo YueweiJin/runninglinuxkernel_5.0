@@ -103,6 +103,7 @@ int crypto_grab_akcipher(struct crypto_akcipher_spawn *spawn, const char *name,
 }
 EXPORT_SYMBOL_GPL(crypto_grab_akcipher);
 
+/* JYW: 创建一个非对称算法句柄 */
 struct crypto_akcipher *crypto_alloc_akcipher(const char *alg_name, u32 type,
 					      u32 mask)
 {

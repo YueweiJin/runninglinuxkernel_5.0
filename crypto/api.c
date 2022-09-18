@@ -452,6 +452,7 @@ err:
 }
 EXPORT_SYMBOL_GPL(crypto_alloc_base);
 
+/* JYW: 创建一个tfm结构 */
 void *crypto_create_tfm(struct crypto_alg *alg,
 			const struct crypto_type *frontend)
 {
@@ -529,6 +530,7 @@ EXPORT_SYMBOL_GPL(crypto_find_alg);
  *
  *	In case of error the return value is an error pointer.
  */
+/* JYW: 分配一个算法句柄 */
 void *crypto_alloc_tfm(const char *alg_name,
 		       const struct crypto_type *frontend, u32 type, u32 mask)
 {
@@ -537,7 +539,7 @@ void *crypto_alloc_tfm(const char *alg_name,
 
 	for (;;) {
 		struct crypto_alg *alg;
-
+		/* JYW: 查找对应的算法 */
 		alg = crypto_find_alg(alg_name, frontend, type, mask);
 		if (IS_ERR(alg)) {
 			err = PTR_ERR(alg);

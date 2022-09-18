@@ -1285,6 +1285,7 @@ EXPORT_SYMBOL_GPL(crypto_aes_expand_key);
  * &crypto_aes_ctx _must_ be the private data embedded in @tfm which is
  * retrieved with crypto_tfm_ctx().
  */
+/* JYW: 设置AES KEY */
 int crypto_aes_set_key(struct crypto_tfm *tfm, const u8 *in_key,
 		unsigned int key_len)
 {

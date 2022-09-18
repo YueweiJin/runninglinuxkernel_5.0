@@ -26,6 +26,7 @@
  *	@base: Underlying async request request
  *	@__ctx: Start of private context data
  */
+/* JYW: 对称算法请求 */
 struct skcipher_request {
 	unsigned int cryptlen;
 
@@ -34,11 +35,13 @@ struct skcipher_request {
 	struct scatterlist *src;
 	struct scatterlist *dst;
 
+	/* JYW: 异步请求结构 */
 	struct crypto_async_request base;
 
 	void *__ctx[] CRYPTO_MINALIGN_ATTR;
 };
 
+/* JYW: 代表对称算法句柄 */
 struct crypto_skcipher {
 	int (*setkey)(struct crypto_skcipher *tfm, const u8 *key,
 	              unsigned int keylen);
@@ -432,6 +435,7 @@ static inline void crypto_sync_skcipher_clear_flags(
  *
  * Return: 0 if the setting of the key was successful; < 0 if an error occurred
  */
+/* JYW: 设置对称算法秘钥 */
 static inline int crypto_skcipher_setkey(struct crypto_skcipher *tfm,
 					 const u8 *key, unsigned int keylen)
 {
@@ -586,6 +590,7 @@ static inline struct skcipher_request *skcipher_request_cast(
  *
  * Return: allocated request handle in case of success, or NULL if out of memory
  */
+/* JYW: 分配一个请求数据结构 */
 static inline struct skcipher_request *skcipher_request_alloc(
 	struct crypto_skcipher *tfm, gfp_t gfp)
 {

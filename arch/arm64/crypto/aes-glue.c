@@ -455,6 +455,7 @@ static int xts_decrypt(struct skcipher_request *req)
 	return err;
 }
 
+/* JYW: 待注册的对称算法 */
 static struct skcipher_alg aes_algs[] = { {
 	.base = {
 		.cra_name		= "__ecb(aes)",

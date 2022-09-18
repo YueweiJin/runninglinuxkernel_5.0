@@ -159,7 +159,7 @@ typedef void (*crypto_completion_t)(struct crypto_async_request *req, int err);
  * These data structures define the operating context for each block cipher
  * type.
  */
-
+/* JYW: 异步请求结构 */
 struct crypto_async_request {
 	struct list_head list;
 	crypto_completion_t complete;
@@ -778,6 +778,7 @@ struct crypto_tfm {
 
 	void (*exit)(struct crypto_tfm *tfm);
 	
+	/* JYW: 关联的算法 */
 	struct crypto_alg *__crt_alg;
 
 	void *__crt_ctx[] CRYPTO_MINALIGN_ATTR;
