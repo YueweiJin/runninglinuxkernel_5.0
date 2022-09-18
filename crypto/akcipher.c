@@ -119,6 +119,7 @@ static void akcipher_prepare_alg(struct akcipher_alg *alg)
 	base->cra_flags |= CRYPTO_ALG_TYPE_AKCIPHER;
 }
 
+/* JYW: 注册一个非对称算法 */
 int crypto_register_akcipher(struct akcipher_alg *alg)
 {
 	struct crypto_alg *base = &alg->base;

@@ -57,6 +57,7 @@ static inline int crypto_is_test_larval(struct crypto_larval *larval)
 	return larval->alg.cra_driver_name[0];
 }
 
+/* JYW: 查找注册的算法 核心是遍历 crypto_alg_list 链表 */
 static struct crypto_alg *__crypto_alg_lookup(const char *name, u32 type,
 					      u32 mask)
 {
@@ -193,6 +194,7 @@ static struct crypto_alg *crypto_larval_wait(struct crypto_alg *alg)
 	return alg;
 }
 
+/* JYW: 查找一个注册的算法 */
 static struct crypto_alg *crypto_alg_lookup(const char *name, u32 type,
 					    u32 mask)
 {
@@ -261,6 +263,7 @@ int crypto_probing_notify(unsigned long val, void *v)
 }
 EXPORT_SYMBOL_GPL(crypto_probing_notify);
 
+/* JYW: 查找一个算法 如果链表中不存在会请求加载模块 */
 struct crypto_alg *crypto_alg_mod_lookup(const char *name, u32 type, u32 mask)
 {
 	struct crypto_alg *alg;
@@ -490,6 +493,7 @@ out:
 }
 EXPORT_SYMBOL_GPL(crypto_create_tfm);
 
+/* JYW: 查找一个算法 */
 struct crypto_alg *crypto_find_alg(const char *alg_name,
 				   const struct crypto_type *frontend,
 				   u32 type, u32 mask)

@@ -559,12 +559,16 @@ struct crypto_alg {
 	unsigned int cra_ctxsize;
 	unsigned int cra_alignmask;
 
+    /* JYW: 算法优先级 */
 	int cra_priority;
 	refcount_t cra_refcnt;
 
+    /* JYW: 算法名称 */
 	char cra_name[CRYPTO_MAX_ALG_NAME];
+    /* JYW: 驱动名称 */
 	char cra_driver_name[CRYPTO_MAX_ALG_NAME];
 
+	/* JYW: crypto_akcipher_type */
 	const struct crypto_type *cra_type;
 
 	union {

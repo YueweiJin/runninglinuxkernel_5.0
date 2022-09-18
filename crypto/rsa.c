@@ -350,6 +350,7 @@ static void rsa_exit_tfm(struct crypto_akcipher *tfm)
 	rsa_free_mpi_key(pkey);
 }
 
+/* JYW: 非对称算法实例：RSA */
 static struct akcipher_alg rsa = {
 	.encrypt = rsa_enc,
 	.decrypt = rsa_dec,
@@ -368,10 +369,12 @@ static struct akcipher_alg rsa = {
 	},
 };
 
+/* JYW: 初始化注册一个rsa算法 */
 static int rsa_init(void)
 {
 	int err;
 
+	/* JYW: 注册一个非对称算法 */
 	err = crypto_register_akcipher(&rsa);
 	if (err)
 		return err;

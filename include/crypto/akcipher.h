@@ -89,6 +89,7 @@ struct crypto_akcipher {
  * @reqsize:	Request context size required by algorithm implementation
  * @base:	Common crypto API algorithm data structure
  */
+/* JYW: 表示一个非对称算法 */
 struct akcipher_alg {
 	int (*sign)(struct akcipher_request *req);
 	int (*verify)(struct akcipher_request *req);

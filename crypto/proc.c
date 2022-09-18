@@ -38,6 +38,7 @@ static void c_stop(struct seq_file *m, void *p)
 	up_read(&crypto_alg_sem);
 }
 
+/*JYW: 通过/proc/crypto查看支持的算法 */
 static int c_show(struct seq_file *m, void *p)
 {
 	struct crypto_alg *alg = list_entry(p, struct crypto_alg, cra_list);

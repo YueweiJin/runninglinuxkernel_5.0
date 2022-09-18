@@ -48,6 +48,7 @@ struct crypto_type {
 	unsigned int tfmsize;
 };
 
+/* JYW: 表示一个算法实例 */
 struct crypto_instance {
 	struct crypto_alg alg;
 
@@ -64,6 +65,7 @@ struct crypto_template {
 
 	struct crypto_instance *(*alloc)(struct rtattr **tb);
 	void (*free)(struct crypto_instance *inst);
+	/* JYW: pkcs1pad_create */
 	int (*create)(struct crypto_template *tmpl, struct rtattr **tb);
 
 	char name[CRYPTO_MAX_ALG_NAME];
