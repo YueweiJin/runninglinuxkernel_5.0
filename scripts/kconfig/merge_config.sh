@@ -114,17 +114,22 @@ cat $INITFILE > $TMP_FILE
 
 # Merge files, printing warnings on overridden values
 for ORIG_MERGE_FILE in $MERGE_LIST ; do
+	# JYW: Merging ./arch/arm64/configs/patch.config
 	echo "Merging $ORIG_MERGE_FILE"
 	if [ ! -r "$ORIG_MERGE_FILE" ]; then
 		echo "The merge file '$ORIG_MERGE_FILE' does not exist.  Exit." >&2
 		exit 1
 	fi
 	cat $ORIG_MERGE_FILE > $MERGE_FILE
+	# JYW: 提取patch.config中所有以CONFIG_或#CONFIG_xx is not set开头的行
 	CFG_LIST=$(sed -n -e "$SED_CONFIG_EXP1" -e "$SED_CONFIG_EXP2" $MERGE_FILE)
 
+	# JYW: 遍历patch.config中的每个配置项
 	for CFG in $CFG_LIST ; do
 		grep -q -w $CFG $TMP_FILE || continue
+		# JYW: 获取.config中该配置项的值，示例：CONFIG_HZ_100=y 或 #CONFIG_HZ_100 is not set
 		PREV_VAL=$(grep -w $CFG $TMP_FILE)
+		# JYW: 获取patch.config中该配置项的值
 		NEW_VAL=$(grep -w $CFG $MERGE_FILE)
 		BUILTIN_FLAG=false
 		if [ "$BUILTIN" = "true" ] && [ "${NEW_VAL#CONFIG_*=}" = "m" ] && [ "${PREV_VAL#CONFIG_*=}" = "y" ]; then
@@ -133,6 +138,7 @@ for ORIG_MERGE_FILE in $MERGE_LIST ; do
 			echo -y passed, will not demote y to m
 			echo
 			BUILTIN_FLAG=true
+		# JYW: 如果两个值不相等
 		elif [ "x$PREV_VAL" != "x$NEW_VAL" ] ; then
 			echo Value of $CFG is redefined by fragment $ORIG_MERGE_FILE:
 			echo Previous  value: $PREV_VAL
@@ -142,11 +148,14 @@ for ORIG_MERGE_FILE in $MERGE_LIST ; do
 			echo Value of $CFG is redundant by fragment $ORIG_MERGE_FILE:
 		fi
 		if [ "$BUILTIN_FLAG" = "false" ]; then
+			# JYW: 删除.config中的比较项
 			sed -i "/$CFG[ =]/d" $TMP_FILE
 		else
+			# JYW: 如果传参了-y，当.config中是y，但是patch.config是m，则默认无法改变
 			sed -i "/$CFG[ =]/d" $MERGE_FILE
 		fi
 	done
+	# JYW: 以patch.config中的配置项为准
 	cat $MERGE_FILE >> $TMP_FILE
 done
 
