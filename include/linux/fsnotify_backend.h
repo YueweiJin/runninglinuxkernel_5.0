@@ -125,6 +125,7 @@ struct fsnotify_ops {
  * a group.  If you want to carry more info from the accessing task to the
  * listener this structure is where you need to be adding fields.
  */
+/* JYW: 代表一个文件事件,当检测的文件对象发生变化时，使用read系统调用就会返回一个或者多个该对象 */
 struct fsnotify_event {
 	struct list_head list;
 	/* inode may ONLY be dereferenced during handle_event(). */

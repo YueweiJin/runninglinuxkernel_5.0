@@ -658,6 +658,7 @@ static struct fsnotify_group *inotify_new_group(unsigned int max_events)
 
 
 /* inotify syscalls */
+/* JYW: inotify_init 系统调用，主要是创建了一个匿名fd，读写操作方法是：inotify_fops */
 static int do_inotify_init(int flags)
 {
 	struct fsnotify_group *group;
@@ -693,6 +694,7 @@ SYSCALL_DEFINE0(inotify_init)
 	return do_inotify_init(0);
 }
 
+/* JYW: 系统调用 inotify_add_watch */
 SYSCALL_DEFINE3(inotify_add_watch, int, fd, const char __user *, pathname,
 		u32, mask)
 {
