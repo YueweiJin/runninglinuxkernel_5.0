@@ -415,6 +415,7 @@ static struct vring_desc *alloc_indirect_split(struct virtqueue *_vq,
 	return desc;
 }
 
+/* JYW: 往空闲描述符里填充数据信息，更新索引 */
 static inline int virtqueue_add_split(struct virtqueue *_vq,
 				      struct scatterlist *sgs[],
 				      unsigned int total_sg,
@@ -467,6 +468,7 @@ static inline int virtqueue_add_split(struct virtqueue *_vq,
 		descs_used = total_sg;
 	}
 
+	/* JYW: 空闲描述子不够了 */
 	if (vq->vq.num_free < descs_used) {
 		pr_debug("Can't add buf len %i - avail = %i\n",
 			 descs_used, vq->vq.num_free);
@@ -616,6 +618,7 @@ static bool virtqueue_kick_prepare_split(struct virtqueue *_vq)
 	return needs_kick;
 }
 
+/* JYW: 回收描述子 */
 static void detach_buf_split(struct vring_virtqueue *vq, unsigned int head,
 			     void **ctx)
 {
@@ -628,6 +631,7 @@ static void detach_buf_split(struct vring_virtqueue *vq, unsigned int head,
 	/* Put back on free list: unmap first-level descriptors and find end */
 	i = head;
 
+	/* JYW: 遍历完整个链 */
 	while (vq->split.vring.desc[i].flags & nextflag) {
 		vring_unmap_one_split(vq, &vq->split.vring.desc[i]);
 		i = virtio16_to_cpu(vq->vq.vdev, vq->split.vring.desc[i].next);
@@ -635,8 +639,10 @@ static void detach_buf_split(struct vring_virtqueue *vq, unsigned int head,
 	}
 
 	vring_unmap_one_split(vq, &vq->split.vring.desc[i]);
+	/* JYW: 链接到之前空闲的指针 */
 	vq->split.vring.desc[i].next = cpu_to_virtio16(vq->vq.vdev,
 						vq->free_head);
+	/* JYW: 更新空闲头指针 */
 	vq->free_head = head;
 
 	/* Plus final descriptor */
@@ -691,6 +697,7 @@ static void *virtqueue_get_buf_ctx_split(struct virtqueue *_vq,
 		return NULL;
 	}
 
+	/* JYW: 没有空闲的buffer可回收 */
 	if (!more_used_split(vq)) {
 		pr_debug("No more buffers in queue\n");
 		END_USE(vq);
@@ -717,7 +724,9 @@ static void *virtqueue_get_buf_ctx_split(struct virtqueue *_vq,
 
 	/* detach_buf_split clears data, so grab it now. */
 	ret = vq->split.desc_state[i].data;
+	/* JYW: 回收描述子 */
 	detach_buf_split(vq, i, ctx);
+	/* JYW: 更新本地读指针 */
 	vq->last_used_idx++;
 	/* If we expect an interrupt for the next entry, tell host
 	 * by writing event index and flush out the write before
