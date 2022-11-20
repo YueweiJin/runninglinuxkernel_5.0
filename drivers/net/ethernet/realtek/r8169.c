@@ -5840,6 +5840,9 @@ static __le32 rtl8169_get_txd_opts1(u32 opts0, u32 len, unsigned int entry)
 	return cpu_to_le32(status);
 }
 
+/* JYW: 遍历每个frag片段并填充描述子
+ *		返回值：0表示无frag片段，n表示有n个片段,小于0表示出错
+ */
 static int rtl8169_xmit_frags(struct rtl8169_private *tp, struct sk_buff *skb,
 			      u32 *opts)
 {
@@ -5849,17 +5852,20 @@ static int rtl8169_xmit_frags(struct rtl8169_private *tp, struct sk_buff *skb,
 	struct device *d = tp_to_dev(tp);
 
 	entry = tp->cur_tx;
+	/* JYW: 遍历每个frag */
 	for (cur_frag = 0; cur_frag < info->nr_frags; cur_frag++) {
 		const skb_frag_t *frag = info->frags + cur_frag;
 		dma_addr_t mapping;
 		u32 len;
 		void *addr;
-
 		entry = (entry + 1) % NUM_TX_DESC;
-
+		/* JYW: 获取当前空闲的描述符 */
 		txd = tp->TxDescArray + entry;
+		/* JYW: 获取当前片段的长度 */
 		len = skb_frag_size(frag);
+		/* JYW: 获取当前片段的虚拟地址 */
 		addr = skb_frag_address(frag);
+		/* JYW: 进行DMA内存属性设置 */
 		mapping = dma_map_single(d, addr, len, DMA_TO_DEVICE);
 		if (unlikely(dma_mapping_error(d, mapping))) {
 			if (net_ratelimit())
@@ -5875,6 +5881,7 @@ static int rtl8169_xmit_frags(struct rtl8169_private *tp, struct sk_buff *skb,
 		tp->tx_skb[entry].len = len;
 	}
 
+	/* JYW: 最后一个片段标记尾帧 */
 	if (cur_frag) {
 		tp->tx_skb[entry].skb = skb;
 		txd->opts1 |= cpu_to_le32(LastFrag);
@@ -6087,11 +6094,13 @@ static netdev_tx_t rtl8169_start_xmit(struct sk_buff *skb,
 	opts[1] = cpu_to_le32(rtl8169_tx_vlan_tag(skb));
 	opts[0] = DescOwn;
 
+	/* JYW: 如果校验和计算失败，则进行绕行处理 */
 	if (!tp->tso_csum(tp, skb, opts)) {
 		r8169_csum_workaround(tp, skb);
 		return NETDEV_TX_OK;
 	}
 
+	/* JYW: 计算非线性区长度,同时进行DMA内存属性设置 */
 	len = skb_headlen(skb);
 	mapping = dma_map_single(d, skb->data, len, DMA_TO_DEVICE);
 	if (unlikely(dma_mapping_error(d, mapping))) {
@@ -6103,6 +6112,9 @@ static netdev_tx_t rtl8169_start_xmit(struct sk_buff *skb,
 	tp->tx_skb[entry].len = len;
 	txd->addr = cpu_to_le64(mapping);
 
+	/* JYW: 遍历每个frag片段并填充描述子
+ 	 *		返回值：0表示无frag片段，n表示有n个片段,小于0表示出错
+ 	 */
 	frags = rtl8169_xmit_frags(tp, skb, opts);
 	if (frags < 0)
 		goto err_dma_1;
@@ -6288,6 +6300,7 @@ static inline void rtl8169_rx_csum(struct sk_buff *skb, u32 opts1)
 {
 	u32 status = opts1 & RxProtoMask;
 
+	/* JYW: 如果当前skb为TCP/UDP报文，且以及进行了校验，则置位CHECKSUM_UNNECESSARY告知协议栈不用再计算校验和了 */
 	if (((status == RxProtoTCP) && !(opts1 & TCPFail)) ||
 	    ((status == RxProtoUDP) && !(opts1 & UDPFail)))
 		skb->ip_summed = CHECKSUM_UNNECESSARY;
@@ -6295,6 +6308,7 @@ static inline void rtl8169_rx_csum(struct sk_buff *skb, u32 opts1)
 		skb_checksum_none_assert(skb);
 }
 
+/* JYW: 根据DMA就绪的描述子，将数据拷贝到skb的线性区 */
 static struct sk_buff *rtl8169_try_rx_copy(void *data,
 					   struct rtl8169_private *tp,
 					   int pkt_size,
@@ -6314,6 +6328,7 @@ static struct sk_buff *rtl8169_try_rx_copy(void *data,
 	return skb;
 }
 
+/* JYW: 网卡接收处理 */
 static int rtl_rx(struct net_device *dev, struct rtl8169_private *tp, u32 budget)
 {
 	unsigned int cur_rx, rx_left;
@@ -6376,7 +6391,7 @@ process_pkt:
 				dev->stats.rx_length_errors++;
 				goto release_descriptor;
 			}
-
+			/* JYW: 根据DMA就绪的描述子，将数据拷贝到skb的线性区 */
 			skb = rtl8169_try_rx_copy(tp->Rx_databuff[entry],
 						  tp, pkt_size, addr);
 			if (!skb) {
@@ -6396,6 +6411,7 @@ process_pkt:
 			napi_gro_receive(&tp->napi, skb);
 
 			u64_stats_update_begin(&tp->rx_stats.syncp);
+			/* JYW: 完成rx统计 */
 			tp->rx_stats.packets++;
 			tp->rx_stats.bytes += pkt_size;
 			u64_stats_update_end(&tp->rx_stats.syncp);

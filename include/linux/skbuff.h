@@ -1965,6 +1965,7 @@ static inline bool skb_is_nonlinear(const struct sk_buff *skb)
 	return skb->data_len;
 }
 
+/* JYW: 计算非线性区长度 */
 static inline unsigned int skb_headlen(const struct sk_buff *skb)
 {
 	return skb->len - skb->data_len;
