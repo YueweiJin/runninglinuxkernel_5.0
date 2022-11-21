@@ -218,7 +218,9 @@
 
 /* Don't change this without changing skb_csum_unnecessary! */
 #define CHECKSUM_NONE		0
+/* JYW: 网卡或协议栈已经计算好了L4层的校验值，也就是计算了tcp/udp的伪头；另外，loopback不需要校验；*/
 #define CHECKSUM_UNNECESSARY	1
+/* JYW: 网卡已经计算了L4层的payload校验，并且csum已经被赋值，此时L4层的接收者只需要加伪头并验证校验结果 */
 #define CHECKSUM_COMPLETE	2
 #define CHECKSUM_PARTIAL	3
 
@@ -765,6 +767,17 @@ struct sk_buff {
 	__u8			pkt_type:3;
 	__u8			ignore_df:1;
 	__u8			nf_trace:1;
+	/* JYW: 
+		接收过程：
+			CHECKSUM_NONE: 表示csum域中的校验值无意义，需要L4层自己校验payload和伪头。有可能是硬件校验出错或者没有校验功能。
+			CHECKSUM_UNNECESSARY: 硬件已经进行了完整的校验，无需软件再进行检查，L4收到数据包后如果检查ip_summed是这种情况，就可以跳过校验过程。
+			CHECKSUM_PARTIAL: 虚拟化环境同宿主机不同vm通信时收包会有此种情况（如virtio网卡），此时认为数据虽然未校验，但认为可靠，不过tcp头的校验和字段是错误的。tcp协议栈检查校验和时此种情况不会检查
+			CHECKSUM_COMPLETE:  网卡已经计算了L4层的payload校验，并且csum已经被赋值，此时L4层的接收者只需要加伪头并验证校验结果
+		发送过程：
+			CHECKSUM_NONE: L4软件已经进行了校验，硬件无需做任何事情
+			CHECKSUM_PARTIAL: L4软件计算了伪报头，并且将值保存在了tcp/udp首部的check字段中，硬件需要计算其余部分的校验和。硬件适合做简单的++操作，伪头部稍复杂交给cpu.
+			CHECKSUM_UNNECESSARY: 用户在发包时设置校验和选项 setsockopt（SO_NO_CHECK），也会跳过校验和计算.
+     */
 	__u8			ip_summed:2;
 	__u8			ooo_okay:1;
 
@@ -816,7 +829,9 @@ struct sk_buff {
 #endif
 
 	union {
+		/* JYW: 存放硬件或软件计算的payload的checksum，不包括伪头，但是是否有意义由skb->ip_summed的值决定 */
 		__wsum		csum;
+		/* JYW: 作为输出包时，start告诉网卡硬件 相对skb->head csum从哪里开始计算，offset告诉网卡硬件 计算好了放在哪里 */
 		struct {
 			__u16	csum_start;
 			__u16	csum_offset;
@@ -1959,7 +1974,7 @@ static inline struct sk_buff *__skb_dequeue_tail(struct sk_buff_head *list)
 	return skb;
 }
 
-
+/* JYW: 有data_len表示非线性区有数据 */
 static inline bool skb_is_nonlinear(const struct sk_buff *skb)
 {
 	return skb->data_len;
@@ -3120,8 +3135,10 @@ static inline int skb_linearize(struct sk_buff *skb)
  * Return true if the skb has at least one frag that might be modified
  * by an external entity (as in vmsplice()/sendfile())
  */
+/* JYW: 表示至少有一个分片 */
 static inline bool skb_has_shared_frag(const struct sk_buff *skb)
 {
+	/* JYW: 有data_len表示非线性区有数据 */
 	return skb_is_nonlinear(skb) &&
 	       skb_shinfo(skb)->tx_flags & SKBTX_SHARED_FRAG;
 }

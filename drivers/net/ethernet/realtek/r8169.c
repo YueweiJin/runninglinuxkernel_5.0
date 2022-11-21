@@ -5925,7 +5925,9 @@ static void r8169_csum_workaround(struct rtl8169_private *tp,
 		} while (segs);
 
 		dev_consume_skb_any(skb);
+	/* JYW: L4软件计算了伪报头，并且将值保存在了tcp/udp首部的check字段中，硬件需要计算其余部分的校验和 */
 	} else if (skb->ip_summed == CHECKSUM_PARTIAL) {
+		/* JYW: 手动计算checksum值 */
 		if (skb_checksum_help(skb) < 0)
 			goto drop;
 
@@ -6118,8 +6120,10 @@ static netdev_tx_t rtl8169_start_xmit(struct sk_buff *skb,
 	frags = rtl8169_xmit_frags(tp, skb, opts);
 	if (frags < 0)
 		goto err_dma_1;
+	/* JYW: 如果当前有frag */
 	else if (frags)
 		opts[0] |= FirstFrag;
+	/* JYW: 如果当前skb没有frag */
 	else {
 		opts[0] |= FirstFrag | LastFrag;
 		tp->tx_skb[entry].skb = skb;
@@ -6139,6 +6143,7 @@ static netdev_tx_t rtl8169_start_xmit(struct sk_buff *skb,
 	/* Force all memory writes to complete before notifying device */
 	wmb();
 
+	/* JYW: 更新tx指针 */
 	tp->cur_tx += frags + 1;
 
 	RTL_W8(tp, TxPoll, NPQ);
@@ -7351,7 +7356,7 @@ static int rtl_init_one(struct pci_dev *pdev, const struct pci_device_id *ent)
 	 * properly for all devices */
 	dev->features |= NETIF_F_RXCSUM |
 		NETIF_F_HW_VLAN_CTAG_TX | NETIF_F_HW_VLAN_CTAG_RX;
-
+	/* JYW: 支持SG、校验和、TSO */
 	dev->hw_features = NETIF_F_SG | NETIF_F_IP_CSUM | NETIF_F_TSO |
 		NETIF_F_RXCSUM | NETIF_F_HW_VLAN_CTAG_TX |
 		NETIF_F_HW_VLAN_CTAG_RX;

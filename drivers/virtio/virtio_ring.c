@@ -119,11 +119,14 @@ struct vring_virtqueue {
 	bool event;
 
 	/* Head of free buffer list. */
+	/* JYW: 当前描述符表中空闲头指针 */
 	unsigned int free_head;
 	/* Number we've added since last sync. */
+	/* JYW: 出发通知前已添加了多少次buffer */
 	unsigned int num_added;
 
 	/* Last used index we've seen. */
+	/* JYW: 对端已经使用完成的索引 */
 	u16 last_used_idx;
 
 	union {
@@ -139,6 +142,7 @@ struct vring_virtqueue {
 			 * Last written value to avail->idx in
 			 * guest byte order.
 			 */
+			/* JYW: 最近一次写到avail->idx的值 */
 			u16 avail_idx_shadow;
 
 			/* Per-descriptor state. */
@@ -153,6 +157,7 @@ struct vring_virtqueue {
 		struct {
 			/* Actual memory layout for this queue. */
 			struct {
+				/* JYW: 描述符的个数 */
 				unsigned int num;
 				struct vring_packed_desc *desc;
 				struct vring_packed_desc_event *driver;
@@ -548,6 +553,7 @@ static inline int virtqueue_add_split(struct virtqueue *_vq,
 
 	/* Put entry in available array (but don't update avail->idx until they
 	 * do sync). */
+	/* JYW: 更新当前idx及ring[]索引 */
 	avail = vq->split.avail_idx_shadow & (vq->split.vring.num - 1);
 	vq->split.vring.avail->ring[avail] = cpu_to_virtio16(_vq->vdev, head);
 
@@ -557,6 +563,7 @@ static inline int virtqueue_add_split(struct virtqueue *_vq,
 	vq->split.avail_idx_shadow++;
 	vq->split.vring.avail->idx = cpu_to_virtio16(_vq->vdev,
 						vq->split.avail_idx_shadow);
+	/* JYW：更新添加次数 */
 	vq->num_added++;
 
 	pr_debug("Added buffer head %i to %p\n", head, vq);
@@ -680,7 +687,7 @@ static inline bool more_used_split(const struct vring_virtqueue *vq)
 			vq->split.vring.used->idx);
 }
 
-/* JYW: 获得下一个可用的buffer */
+/* JYW: 该接口会回收对端已经处理的描述符 */
 static void *virtqueue_get_buf_ctx_split(struct virtqueue *_vq,
 					 unsigned int *len,
 					 void **ctx)
@@ -706,8 +713,9 @@ static void *virtqueue_get_buf_ctx_split(struct virtqueue *_vq,
 
 	/* Only get used array entries after they have been exposed by host. */
 	virtio_rmb(vq->weak_barriers);
-
+	/* JYW: 找到上次处理的位置 */
 	last_used = (vq->last_used_idx & (vq->split.vring.num - 1));
+	/* JYW: 获取到起始的描述符位置 */
 	i = virtio32_to_cpu(_vq->vdev,
 			vq->split.vring.used->ring[last_used].id);
 	*len = virtio32_to_cpu(_vq->vdev,
@@ -726,7 +734,7 @@ static void *virtqueue_get_buf_ctx_split(struct virtqueue *_vq,
 	ret = vq->split.desc_state[i].data;
 	/* JYW: 回收描述子 */
 	detach_buf_split(vq, i, ctx);
-	/* JYW: 更新本地读指针 */
+	/* JYW: 更新当前处理的位置，以便于下次从这里开始 */
 	vq->last_used_idx++;
 	/* If we expect an interrupt for the next entry, tell host
 	 * by writing event index and flush out the write before
@@ -755,6 +763,7 @@ static void virtqueue_disable_cb_split(struct virtqueue *_vq)
 	}
 }
 
+/* JYW: 更新本地last_used_idx到vring中，用于通知对端处理到哪里了*/
 static unsigned virtqueue_enable_cb_prepare_split(struct virtqueue *_vq)
 {
 	struct vring_virtqueue *vq = to_vvq(_vq);

@@ -170,7 +170,7 @@ struct vring {
  * 表示数据处理了，这样宿主os才会有数据的时候继续发生中断。
  */
 
-/* JYW: 找到used_event地址，用来通知宿主os，读取到哪里了 */
+/* JYW: 找到used_event地址，用来通知guest，处理到哪里了 */
 #define vring_used_event(vr) ((vr)->avail->ring[(vr)->num])
 /* JYW：找到avail_event地址，用来通知宿主os，写到哪里了 */
 #define vring_avail_event(vr) (*(__virtio16 *)&(vr)->used->ring[(vr)->num])
@@ -190,7 +190,7 @@ static inline void vring_init(struct vring *vr, unsigned int num, void *p,
 /* JYW: vring管理的size大小 */
 static inline unsigned vring_size(unsigned int num, unsigned long align)
 {
-    /* JYW: 为什么是3？ 在vring_avail结尾有个16字位的used_event，之后放得是vring_used，同样，后面有个16位的avail_event */
+    /* JYW:  在vring_avail结尾有个16字位的used_event，之后放得是vring_used，同样，后面有个16位的avail_event */
 	return ((sizeof(struct vring_desc) * num + sizeof(__virtio16) * (3 + num)
 		 + align - 1) & ~(align - 1))
 		+ sizeof(__virtio16) * 3 + sizeof(struct vring_used_elem) * num;

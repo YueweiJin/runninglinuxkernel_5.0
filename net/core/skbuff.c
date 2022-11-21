@@ -1449,7 +1449,7 @@ EXPORT_SYMBOL(__pskb_copy_fclone);
  *	All the pointers pointing into skb header may change and must be
  *	reloaded after call to this function.
  */
-
+/* JYW: 重新分配一个空间更大的线性区skb，将frag数据拷贝到新skb的线性区并复制shared_info */
 int pskb_expand_head(struct sk_buff *skb, int nhead, int ntail,
 		     gfp_t gfp_mask)
 {
@@ -1888,6 +1888,7 @@ EXPORT_SYMBOL(pskb_trim_rcsum_slow);
  *
  * It is pretty complicated. Luckily, it is called only in exceptional cases.
  */
+/* JYW: 将非线性区数据搬移到线性区 */
 void *__pskb_pull_tail(struct sk_buff *skb, int delta)
 {
 	/* If skb has not enough free space at tail, get new one
@@ -1896,7 +1897,9 @@ void *__pskb_pull_tail(struct sk_buff *skb, int delta)
 	 */
 	int i, k, eat = (skb->tail + delta) - skb->end;
 
+	/* JYW: 如果eat>0表示线性空间不够，则会走扩展处理，否则不需要扩展除非当前skb是克隆过的 */
 	if (eat > 0 || skb_cloned(skb)) {
+		/* JYW: 重新分配一个空间更大的线性区skb，将frag数据拷贝到新skb的线性区并复制shared_info */
 		if (pskb_expand_head(skb, 0, eat > 0 ? eat + 128 : 0,
 				     GFP_ATOMIC))
 			return NULL;

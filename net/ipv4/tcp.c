@@ -899,6 +899,7 @@ struct sk_buff *sk_stream_alloc_skb(struct sock *sk, int size, gfp_t gfp,
 	return NULL;
 }
 
+/* JYW: 计算网卡能一次发送的最大数据长度的值 */
 static unsigned int tcp_xmit_size_goal(struct sock *sk, u32 mss_now,
 				       int large_allowed)
 {
@@ -924,11 +925,13 @@ static unsigned int tcp_xmit_size_goal(struct sock *sk, u32 mss_now,
 	return max(size_goal, mss_now);
 }
 
+/* JYW: 计算当前最大报文段大小，并将网卡能一次发送的最大数据长度的值放入size_goal中 */
 static int tcp_send_mss(struct sock *sk, int *size_goal, int flags)
 {
 	int mss_now;
 
 	mss_now = tcp_current_mss(sk);
+	/* JYW: 计算网卡能一次发送的最大数据长度的值 */
 	*size_goal = tcp_xmit_size_goal(sk, mss_now, !(flags & MSG_OOB));
 
 	return mss_now;
@@ -956,6 +959,7 @@ ssize_t do_tcp_sendpages(struct sock *sk, struct page *page, int offset,
 
 	sk_clear_bit(SOCKWQ_ASYNC_NOSPACE, sk);
 
+	/* JYW: 计算当前最大报文段大小，并将网卡能一次发送的最大数据长度的值放入size_goal中 */
 	mss_now = tcp_send_mss(sk, &size_goal, flags);
 	copied = 0;
 
@@ -997,6 +1001,7 @@ new_segment:
 
 		if (can_coalesce) {
 			skb_frag_size_add(&skb_shinfo(skb)->frags[i - 1], copy);
+		/* JYW: 如果无法聚合，只能放到非线性区 */
 		} else {
 			get_page(page);
 			skb_fill_page_desc(skb, i, page, offset, copy);
@@ -1256,6 +1261,7 @@ int tcp_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t size)
 	copied = 0;
 
 restart:
+	/* JYW: 计算当前最大报文段大小，并将网卡能一次发送的最大数据长度的值放入size_goal中 */
 	mss_now = tcp_send_mss(sk, &size_goal, flags);
 
 	err = -EPIPE;

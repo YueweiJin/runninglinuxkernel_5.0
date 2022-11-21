@@ -2902,11 +2902,13 @@ static void skb_warn_bad_offload(const struct sk_buff *skb)
  * Invalidate hardware checksum when packet is to be mangled, and
  * complete checksum manually on outgoing path.
  */
+/* JYW: 手动计算checksum值 */
 int skb_checksum_help(struct sk_buff *skb)
 {
 	__wsum csum;
 	int ret = 0, offset;
 
+	/* JYW: 驱动看到该标记时，当作CHECKSUM_NONE处理，认为协议栈已经计算好了校验值 */
 	if (skb->ip_summed == CHECKSUM_COMPLETE)
 		goto out_set_summed;
 
@@ -2918,7 +2920,9 @@ int skb_checksum_help(struct sk_buff *skb)
 	/* Before computing a checksum, we should make sure no frag could
 	 * be modified by an external entity : checksum could be wrong.
 	 */
+	/* JYW: 表示至少有一个分片 */
 	if (skb_has_shared_frag(skb)) {
+		/* JYW: 完成线性化处理 */
 		ret = __skb_linearize(skb);
 		if (ret)
 			goto out;
@@ -2937,9 +2941,10 @@ int skb_checksum_help(struct sk_buff *skb)
 		if (ret)
 			goto out;
 	}
-
+	/* JYW: 完成校验和计算 */
 	*(__sum16 *)(skb->data + offset) = csum_fold(csum) ?: CSUM_MANGLED_0;
 out_set_summed:
+	/* JYW: 标记告知驱动协议栈已经完成了校验和计算 */
 	skb->ip_summed = CHECKSUM_NONE;
 out:
 	return ret;
@@ -3010,6 +3015,7 @@ __be16 skb_network_protocol(struct sk_buff *skb, int *depth)
  *	@skb: buffer to segment
  *	@features: features for the output path (see dev->features)
  */
+/* JYW: 调用三层协议完成分片处理 */
 struct sk_buff *skb_mac_gso_segment(struct sk_buff *skb,
 				    netdev_features_t features)
 {
@@ -3024,6 +3030,10 @@ struct sk_buff *skb_mac_gso_segment(struct sk_buff *skb,
 	__skb_pull(skb, vlan_depth);
 
 	rcu_read_lock();
+	/* JYW: 调用三层协议具体的处理函数：
+     *		TCP: tcp_tso_segment
+	 *		UDP: udp4_ufo_fragment
+     */
 	list_for_each_entry_rcu(ptype, &offload_base, list) {
 		if (ptype->type == type && ptype->callbacks.gso_segment) {
 			segs = ptype->callbacks.gso_segment(skb, features);
@@ -3099,6 +3109,7 @@ struct sk_buff *__skb_gso_segment(struct sk_buff *skb,
 	skb_reset_mac_header(skb);
 	skb_reset_mac_len(skb);
 
+	/* JYW: 调用三层协议完成分片处理 */
 	segs = skb_mac_gso_segment(skb, features);
 
 	if (unlikely(skb_needs_check(skb, tx_path) && !IS_ERR(segs)))
@@ -3342,9 +3353,11 @@ static struct sk_buff *validate_xmit_skb(struct sk_buff *skb, struct net_device 
 	if (unlikely(!skb))
 		goto out_null;
 
+	/* JYW: 判断需要协议栈分片 */
 	if (netif_needs_gso(skb, features)) {
 		struct sk_buff *segs;
 
+		/* JYW：调用具体协议完成分片操作 */
 		segs = skb_gso_segment(skb, features);
 		if (IS_ERR(segs)) {
 			goto out_kfree_skb;
@@ -3353,6 +3366,7 @@ static struct sk_buff *validate_xmit_skb(struct sk_buff *skb, struct net_device 
 			skb = segs;
 		}
 	} else {
+		/* JYW: 如果网卡底层不支持线性化处理，则先完成线性化处理 */
 		if (skb_needs_linearize(skb, features) &&
 		    __skb_linearize(skb))
 			goto out_kfree_skb;
@@ -8582,6 +8596,7 @@ int register_netdevice(struct net_device *dev)
 	/* Transfer changeable features to wanted_features and enable
 	 * software offloads (GSO and GRO).
 	 */
+	/* JYW: 默认开启软件的GSO */
 	dev->hw_features |= NETIF_F_SOFT_FEATURES;
 	dev->features |= NETIF_F_SOFT_FEATURES;
 

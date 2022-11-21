@@ -878,7 +878,7 @@ static int udp_send_skb(struct sk_buff *skb, struct flowi4 *fl4,
 		csum = udplite_csum(skb);
 
 	else if (sk->sk_no_check_tx) {			 /* UDP csum off */
-
+		/* JYW: 如果socket选项标记了sk_no_check_tx，则不用再计算校验和 */
 		skb->ip_summed = CHECKSUM_NONE;
 		goto send;
 

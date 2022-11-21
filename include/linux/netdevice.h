@@ -4329,6 +4329,7 @@ struct netdev_notifier_bonding_info {
 void netdev_bonding_info_change(struct net_device *dev,
 				struct netdev_bonding_info *bonding_info);
 
+/* JYW：调用具体协议完成分片操作 */
 static inline
 struct sk_buff *skb_gso_segment(struct sk_buff *skb, netdev_features_t features)
 {
@@ -4495,6 +4496,7 @@ static inline bool skb_gso_ok(struct sk_buff *skb, netdev_features_t features)
 	       (!skb_has_frag_list(skb) || (features & NETIF_F_FRAGLIST));
 }
 
+/* JYW: 判断是否需要协议栈分片 */
 static inline bool netif_needs_gso(struct sk_buff *skb,
 				   netdev_features_t features)
 {
