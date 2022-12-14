@@ -181,6 +181,7 @@ out:
 	return segs;
 }
 
+/* JYW: 这里的head为存放到NAPI gro_list中哈希链表命中的gro_head链表 */
 struct sk_buff *tcp_gro_receive(struct list_head *head, struct sk_buff *skb)
 {
 	struct sk_buff *pp = NULL;
@@ -221,6 +222,7 @@ struct sk_buff *tcp_gro_receive(struct list_head *head, struct sk_buff *skb)
 	len = skb_gro_len(skb);
 	flags = tcp_flag_word(th);
 
+	/* JYW: 这里的head为存放到NAPI gro_list中哈希链表命中的gro_head链表 */
 	list_for_each_entry(p, head, list) {
 		if (!NAPI_GRO_CB(p)->same_flow)
 			continue;
@@ -231,7 +233,7 @@ struct sk_buff *tcp_gro_receive(struct list_head *head, struct sk_buff *skb)
 			NAPI_GRO_CB(p)->same_flow = 0;
 			continue;
 		}
-
+		/* JYW: 到这里，匹配上了相同流 */
 		goto found;
 	}
 	p = NULL;
@@ -267,6 +269,7 @@ found:
 	flush |= p->decrypted ^ skb->decrypted;
 #endif
 
+	/* JYW: 走到这里说明skb和head的skb是同一条流, 则进行合并接收 */
 	if (flush || skb_gro_receive(p, skb)) {
 		mss = 1;
 		goto out_check_final;
@@ -296,7 +299,7 @@ int tcp_gro_complete(struct sk_buff *skb)
 	skb->csum_start = (unsigned char *)th - skb->head;
 	skb->csum_offset = offsetof(struct tcphdr, check);
 	skb->ip_summed = CHECKSUM_PARTIAL;
-
+	/* JYW: 标记片段数量 */
 	skb_shinfo(skb)->gso_segs = NAPI_GRO_CB(skb)->count;
 
 	if (th->cwr)
@@ -307,6 +310,7 @@ int tcp_gro_complete(struct sk_buff *skb)
 EXPORT_SYMBOL(tcp_gro_complete);
 
 INDIRECT_CALLABLE_SCOPE
+/* JYW: 这里的head为存放到NAPI gro_list中哈希链表命中的gro_head链表 */
 struct sk_buff *tcp4_gro_receive(struct list_head *head, struct sk_buff *skb)
 {
 	/* Don't bother verifying checksum if we're going to flush anyway. */

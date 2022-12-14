@@ -503,6 +503,7 @@ struct skb_shared_info {
 	unsigned short	gso_size;
 	/* Warning: this field is not always filled in (UFO)! */
 	unsigned short	gso_segs;
+	/* JYW: 包含分片skb */
 	struct sk_buff	*frag_list;
 	struct skb_shared_hwtstamps hwtstamps;
 	unsigned int	gso_type;
@@ -1980,7 +1981,7 @@ static inline bool skb_is_nonlinear(const struct sk_buff *skb)
 	return skb->data_len;
 }
 
-/* JYW: 计算非线性区长度 */
+/* JYW: 计算线性区长度 */
 static inline unsigned int skb_headlen(const struct sk_buff *skb)
 {
 	return skb->len - skb->data_len;
@@ -2046,6 +2047,7 @@ static inline void __skb_fill_page_desc(struct sk_buff *skb, int i,
  *
  * Does not take any additional reference on the fragment.
  */
+/* JYW: 填充skb frag描述信息 */
 static inline void skb_fill_page_desc(struct sk_buff *skb, int i,
 				      struct page *page, int off, int size)
 {
@@ -3111,6 +3113,7 @@ static inline bool skb_can_coalesce(struct sk_buff *skb, int i,
 	return false;
 }
 
+/* JYW: 将skb进行线性化处理 */
 static inline int __skb_linearize(struct sk_buff *skb)
 {
 	return __pskb_pull_tail(skb, skb->data_len) ? 0 : -ENOMEM;

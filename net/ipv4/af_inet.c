@@ -1390,6 +1390,7 @@ INDIRECT_CALLABLE_DECLARE(struct sk_buff *tcp4_gro_receive(struct list_head *,
 							   struct sk_buff *));
 INDIRECT_CALLABLE_DECLARE(struct sk_buff *udp4_gro_receive(struct list_head *,
 							   struct sk_buff *));
+/* JYW: 这里的head为存放到NAPI gro_list中哈希链表命中的gro_head链表 */
 struct sk_buff *inet_gro_receive(struct list_head *head, struct sk_buff *skb)
 {
 	const struct net_offload *ops;
@@ -1414,6 +1415,7 @@ struct sk_buff *inet_gro_receive(struct list_head *head, struct sk_buff *skb)
 	proto = iph->protocol;
 
 	rcu_read_lock();
+	/* JYW: 找到传输层的offload操作符 */
 	ops = rcu_dereference(inet_offloads[proto]);
 	if (!ops || !ops->callbacks.gro_receive)
 		goto out_unlock;
@@ -1421,6 +1423,7 @@ struct sk_buff *inet_gro_receive(struct list_head *head, struct sk_buff *skb)
 	if (*(u8 *)iph != 0x45)
 		goto out_unlock;
 
+	/* JYW: 判断是否是一个分片ip报文 */
 	if (ip_is_fragment(iph))
 		goto out_unlock;
 
@@ -1431,10 +1434,11 @@ struct sk_buff *inet_gro_receive(struct list_head *head, struct sk_buff *skb)
 	flush = (u16)((ntohl(*(__be32 *)iph) ^ skb_gro_len(skb)) | (id & ~IP_DF));
 	id >>= 16;
 
+	/* JYW: 这里的head为存放到NAPI gro_list中哈希链表命中的gro_head链表 */
 	list_for_each_entry(p, head, list) {
 		struct iphdr *iph2;
 		u16 flush_id;
-
+		/* JYW: 过滤调链表中和当前skb不是相似流的skb */
 		if (!NAPI_GRO_CB(p)->same_flow)
 			continue;
 
@@ -1444,6 +1448,7 @@ struct sk_buff *inet_gro_receive(struct list_head *head, struct sk_buff *skb)
 		 * hdr length so all the hdrs we'll need to verify will start
 		 * at the same offset.
 		 */
+		/* JYW: ip协议、saddr、daddr有不相同，则不是同一个流 */
 		if ((iph->protocol ^ iph2->protocol) |
 		    ((__force u32)iph->saddr ^ (__force u32)iph2->saddr) |
 		    ((__force u32)iph->daddr ^ (__force u32)iph2->daddr)) {
@@ -1496,9 +1501,10 @@ struct sk_buff *inet_gro_receive(struct list_head *head, struct sk_buff *skb)
 	/* Note : No need to call skb_gro_postpull_rcsum() here,
 	 * as we already checked checksum over ipv4 header was 0
 	 */
+	/* JYW: gro data_offset偏移ip头长度 */
 	skb_gro_pull(skb, sizeof(*iph));
 	skb_set_transport_header(skb, skb_gro_offset(skb));
-
+	/* JYW: 调用传输层的gro_receive处理函数 */
 	pp = indirect_call_gro_receive(tcp4_gro_receive, udp4_gro_receive,
 				       ops->callbacks.gro_receive, head, skb);
 
@@ -1576,7 +1582,7 @@ int inet_gro_complete(struct sk_buff *skb, int nhoff)
 		skb_set_inner_protocol(skb, cpu_to_be16(ETH_P_IP));
 		skb_set_inner_network_header(skb, nhoff);
 	}
-
+	/* JYW: 重新计算IP头的校验和 */
 	csum_replace2(&iph->check, iph->tot_len, newlen);
 	iph->tot_len = newlen;
 

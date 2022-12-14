@@ -30,6 +30,15 @@
 
 struct net_protocol __rcu *inet_protos[MAX_INET_PROTOS] __read_mostly;
 EXPORT_SYMBOL(inet_protos);
+/*
+JYW:
+static const struct net_offload tcpv4_offload = {
+	.callbacks = {
+		.gso_segment	=	tcp4_gso_segment,
+		.gro_receive	=	tcp4_gro_receive,
+		.gro_complete	=	tcp4_gro_complete,
+	},
+*/
 const struct net_offload __rcu *inet_offloads[MAX_INET_PROTOS] __read_mostly;
 EXPORT_SYMBOL(inet_offloads);
 

@@ -333,6 +333,7 @@ struct napi_struct {
 	int			poll_owner;
 #endif
 	struct net_device	*dev;
+	/* JYW: 存放积攒的数据包 */
 	struct gro_list		gro_hash[GRO_HASH_BUCKETS];
 	struct sk_buff		*skb;
 	struct hrtimer		timer;

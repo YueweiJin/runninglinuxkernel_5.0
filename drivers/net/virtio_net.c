@@ -423,6 +423,7 @@ static struct sk_buff *page_to_skb(struct virtnet_info *vi,
 
 	if (vi->mergeable_rx_bufs) {
 		if (len)
+			/* JYW: 封装skb frag */
 			skb_add_rx_frag(skb, 0, page, offset, len, truesize);
 		else
 			put_page(page);
@@ -638,6 +639,7 @@ err_buf:
 	return NULL;
 }
 
+/* JYW: 接收小包处理 */
 static struct sk_buff *receive_small(struct net_device *dev,
 				     struct virtnet_info *vi,
 				     struct receive_queue *rq,
@@ -741,6 +743,7 @@ static struct sk_buff *receive_small(struct net_device *dev,
 	}
 	rcu_read_unlock();
 
+	/* JYW: 构造一个skb */
 	skb = build_skb(buf, buflen);
 	if (!skb) {
 		put_page(page);
@@ -748,6 +751,7 @@ static struct sk_buff *receive_small(struct net_device *dev,
 	}
 	skb_reserve(skb, headroom - delta);
 	skb_put(skb, len);
+	/* JYW: delta=0则仅拷贝头部分 */
 	if (!delta) {
 		buf += header_offset;
 		memcpy(skb_vnet_hdr(skb), buf, vi->hdr_len);
@@ -765,6 +769,7 @@ xdp_xmit:
 	return NULL;
 }
 
+/* JYW: 接收大包 */
 static struct sk_buff *receive_big(struct net_device *dev,
 				   struct virtnet_info *vi,
 				   struct receive_queue *rq,
@@ -788,6 +793,7 @@ err:
 	return NULL;
 }
 
+/* JYW: 合并接收，会将数据存在frags，超过后用frag_list存放 */
 static struct sk_buff *receive_mergeable(struct net_device *dev,
 					 struct virtnet_info *vi,
 					 struct receive_queue *rq,
@@ -962,7 +968,7 @@ static struct sk_buff *receive_mergeable(struct net_device *dev,
 			dev->stats.rx_length_errors++;
 			goto err_skb;
 		}
-
+		/* JYW: 如果超过了MAX_SKB_FRAGS，则存放到frag_list */
 		num_skb_frags = skb_shinfo(curr_skb)->nr_frags;
 		if (unlikely(num_skb_frags == MAX_SKB_FRAGS)) {
 			struct sk_buff *nskb = alloc_skb(0, GFP_ATOMIC);
@@ -1020,6 +1026,7 @@ xdp_xmit:
 	return NULL;
 }
 
+/* JYW: 接收skb处理，再调用napi_gro_receive() */
 static void receive_buf(struct virtnet_info *vi, struct receive_queue *rq,
 			void *buf, unsigned int len, void **ctx,
 			unsigned int *xdp_xmit,
@@ -1043,21 +1050,26 @@ static void receive_buf(struct virtnet_info *vi, struct receive_queue *rq,
 	}
 
 	if (vi->mergeable_rx_bufs)
+		/* JYW: 合并接收，会将数据存在frags，超过后用frag_list存放 */
 		skb = receive_mergeable(dev, vi, rq, buf, ctx, len, xdp_xmit,
 					stats);
 	else if (vi->big_packets)
+		/* JYW: 接收大包, 会存放在frag非线性区 */
 		skb = receive_big(dev, vi, rq, buf, len, stats);
 	else
+		/* JYW: 接收小包处理，仅存放在线性区 */
 		skb = receive_small(dev, vi, rq, buf, ctx, len, xdp_xmit, stats);
 
 	if (unlikely(!skb))
 		return;
 
+	/* JYW: 先解析buf中的头 */
 	hdr = skb_vnet_hdr(skb);
 
 	if (hdr->hdr.flags & VIRTIO_NET_HDR_F_DATA_VALID)
 		skb->ip_summed = CHECKSUM_UNNECESSARY;
 
+	/* JYW: 校验头信息 */
 	if (virtio_net_hdr_to_skb(skb, &hdr->hdr,
 				  virtio_is_little_endian(vi->vdev))) {
 		net_warn_ratelimited("%s: bad gso: type: %u, size: %u\n",
@@ -1083,6 +1095,7 @@ frame_err:
  * not need to use  mergeable_len_to_ctx here - it is enough
  * to store the headroom as the context ignoring the truesize.
  */
+/* JYW: 将alloc_frag中数据封装成sg，添加到virqueue中 */
 static int add_recvbuf_small(struct virtnet_info *vi, struct receive_queue *rq,
 			     gfp_t gfp)
 {
@@ -1224,6 +1237,7 @@ static int add_recvbuf_mergeable(struct virtnet_info *vi,
  * before we're receiving packets, or from refill_work which is
  * careful to disable receiving (using napi_disable).
  */
+/* JYW: 返回1表示接收成功 */
 static bool try_fill_recv(struct virtnet_info *vi, struct receive_queue *rq,
 			  gfp_t gfp)
 {
@@ -1236,6 +1250,7 @@ static bool try_fill_recv(struct virtnet_info *vi, struct receive_queue *rq,
 		else if (vi->big_packets)
 			err = add_recvbuf_big(vi, rq, gfp);
 		else
+			/* JYW: 将alloc_frag中数据封装成sg，添加到virqueue中 */
 			err = add_recvbuf_small(vi, rq, gfp);
 
 		oom = err == -ENOMEM;
@@ -1296,6 +1311,7 @@ static void virtnet_napi_tx_disable(struct napi_struct *napi)
 		napi_disable(napi);
 }
 
+/* JYW: 进行接收处理 */
 static void refill_work(struct work_struct *work)
 {
 	struct virtnet_info *vi =
@@ -1307,17 +1323,20 @@ static void refill_work(struct work_struct *work)
 		struct receive_queue *rq = &vi->rq[i];
 
 		napi_disable(&rq->napi);
+		/* JYW: 返回1表示接收成功, 0表示内存不足，需要继续接收 */
 		still_empty = !try_fill_recv(vi, rq, GFP_KERNEL);
 		virtnet_napi_enable(rq->vq, &rq->napi);
 
 		/* In theory, this can happen: if we don't get any buffers in
 		 * we will *never* try to fill again.
 		 */
+		/* JYW: 如果仍有空闲，则可以由工作队列协助补充回收 */
 		if (still_empty)
 			schedule_delayed_work(&vi->refill, HZ/2);
 	}
 }
 
+/* JYW: 从队列中接收数据 */
 static int virtnet_receive(struct receive_queue *rq, int budget,
 			   unsigned int *xdp_xmit)
 {
@@ -1332,6 +1351,7 @@ static int virtnet_receive(struct receive_queue *rq, int budget,
 
 		while (stats.packets < budget &&
 		       (buf = virtqueue_get_buf_ctx(rq->vq, &len, &ctx))) {
+			/* JYW: 接收skb处理，再调用napi_gro_receive() */
 			receive_buf(vi, rq, buf, len, ctx, xdp_xmit, &stats);
 			stats.packets++;
 		}
@@ -1343,7 +1363,9 @@ static int virtnet_receive(struct receive_queue *rq, int budget,
 		}
 	}
 
+	/* JYW: 如果队列空闲大于一半以上 */
 	if (rq->vq->num_free > virtqueue_get_vring_size(rq->vq) / 2) {
+		/* JYW: 如果中间接收失败，则唤醒工作队列继续接收 */
 		if (!try_fill_recv(vi, rq, GFP_ATOMIC))
 			schedule_delayed_work(&vi->refill, 0);
 	}
@@ -1361,6 +1383,7 @@ static int virtnet_receive(struct receive_queue *rq, int budget,
 	return stats.packets;
 }
 
+/* JYW: 回收对端处理完成的skb */
 static void free_old_xmit_skbs(struct send_queue *sq, bool in_napi)
 {
 	unsigned int len;
@@ -1407,6 +1430,7 @@ static bool is_xdp_raw_buffer_queue(struct virtnet_info *vi, int q)
 		return false;
 }
 
+/* JYW: 回收发送skb及清理发送队列 */
 static void virtnet_poll_cleantx(struct receive_queue *rq)
 {
 	struct virtnet_info *vi = rq->vq->vdev->priv;
@@ -1418,6 +1442,7 @@ static void virtnet_poll_cleantx(struct receive_queue *rq)
 		return;
 
 	if (__netif_tx_trylock(txq)) {
+		/* JYW: 回收对端处理完成的skb */
 		free_old_xmit_skbs(sq, true);
 		__netif_tx_unlock(txq);
 	}
@@ -1435,8 +1460,10 @@ static int virtnet_poll(struct napi_struct *napi, int budget)
 	unsigned int received;
 	unsigned int xdp_xmit = 0;
 
+	/* JYW: 回收发送skb及清理发送队列 */
 	virtnet_poll_cleantx(rq);
 
+	/* JYW: 从队列中接收数据 */
 	received = virtnet_receive(rq, budget, &xdp_xmit);
 
 	/* Out of packets? */
@@ -1571,6 +1598,7 @@ static netdev_tx_t start_xmit(struct sk_buff *skb, struct net_device *dev)
 	bool use_napi = sq->napi.weight;
 
 	/* Free up any pending old buffers before queueing new ones. */
+	/* JYW: 回收对端处理完成的skb */
 	free_old_xmit_skbs(sq, false);
 
 	if (use_napi && kick)
