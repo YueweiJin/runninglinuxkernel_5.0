@@ -3316,6 +3316,7 @@ static inline int __skb_grow_rcsum(struct sk_buff *skb, unsigned int len)
 		     skb != (struct sk_buff *)(queue);				\
 		     skb = tmp, tmp = skb->prev)
 
+/* JYW: skb存在frag_list */
 static inline bool skb_has_frag_list(const struct sk_buff *skb)
 {
 	return skb_shinfo(skb)->frag_list != NULL;
@@ -3455,6 +3456,7 @@ skb_header_pointer(const struct sk_buff *skb, int offset, int len, void *buffer)
  *	1. skb has frag_list and the device doesn't support FRAGLIST, or
  *	2. skb is fragmented and the device does not support SG.
  */
+/* JYW: 是否需要进行线性化处理 */
 static inline bool skb_needs_linearize(struct sk_buff *skb,
 				       netdev_features_t features)
 {

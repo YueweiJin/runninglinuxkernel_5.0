@@ -813,6 +813,7 @@ ssize_t inet_sendpage(struct socket *sock, struct page *page, int offset,
 		return -EAGAIN;
 
 	if (sk->sk_prot->sendpage)
+		/* JYW: tcp_sendpage */
 		return sk->sk_prot->sendpage(sk, page, offset, size, flags);
 	return sock_no_sendpage(sock, page, offset, size, flags);
 }

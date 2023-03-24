@@ -4491,6 +4491,7 @@ static inline bool net_gso_ok(netdev_features_t features, int gso_type)
 	return (features & feature) == feature;
 }
 
+/* JYW: 是否能够进行GSO */
 static inline bool skb_gso_ok(struct sk_buff *skb, netdev_features_t features)
 {
 	return net_gso_ok(features, skb_shinfo(skb)->gso_type) &&

@@ -3451,11 +3451,12 @@ static int stmmac_rx(struct stmmac_priv *priv, int limit, u32 queue)
 							rx_q->rx_skbuff_dma
 							[entry], frame_len,
 							DMA_FROM_DEVICE);
+				/* JYW: 拷贝到skb的线性区 */
 				skb_copy_to_linear_data(skb,
 							rx_q->
 							rx_skbuff[entry]->data,
 							frame_len);
-
+				/* JYW: 更新skb的tail指针 */
 				skb_put(skb, frame_len);
 				dma_sync_single_for_device(priv->device,
 							   rx_q->rx_skbuff_dma
@@ -3497,7 +3498,7 @@ static int stmmac_rx(struct stmmac_priv *priv, int limit, u32 queue)
 				skb_checksum_none_assert(skb);
 			else
 				skb->ip_summed = CHECKSUM_UNNECESSARY;
-
+			/* JYW: GRO接收处理 */
 			napi_gro_receive(&ch->napi, skb);
 
 			priv->dev->stats.rx_packets++;

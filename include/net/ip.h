@@ -198,6 +198,7 @@ static inline int ip_queue_xmit(struct sock *sk, struct sk_buff *skb,
 	return __ip_queue_xmit(sk, skb, fl, inet_sk(sk)->tos);
 }
 
+/* JYW: 封装传输层的skb包 */
 static inline struct sk_buff *ip_finish_skb(struct sock *sk, struct flowi4 *fl4)
 {
 	return __ip_make_skb(sk, fl4, &sk->sk_write_queue, &inet_sk(sk)->cork.base);
