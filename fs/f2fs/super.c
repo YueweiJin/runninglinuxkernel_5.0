@@ -2739,6 +2739,7 @@ static int init_percpu_info(struct f2fs_sb_info *sbi)
 }
 
 #ifdef CONFIG_BLK_DEV_ZONED
+/* JYW: 初始化zone信息 */
 static int init_blkz_info(struct f2fs_sb_info *sbi, int devi)
 {
 	struct block_device *bdev = FDEV(devi).bdev;
@@ -2755,11 +2756,14 @@ static int init_blkz_info(struct f2fs_sb_info *sbi, int devi)
 	if (sbi->blocks_per_blkz && sbi->blocks_per_blkz !=
 				SECTOR_TO_BLOCK(bdev_zone_sectors(bdev)))
 		return -EINVAL;
+	/* JYW: 计算一个zone中有多少个块 */
 	sbi->blocks_per_blkz = SECTOR_TO_BLOCK(bdev_zone_sectors(bdev));
 	if (sbi->log_blocks_per_blkz && sbi->log_blocks_per_blkz !=
 				__ilog2_u32(sbi->blocks_per_blkz))
 		return -EINVAL;
+	/* JYW: 计算一个zone中有多少个日志块 */
 	sbi->log_blocks_per_blkz = __ilog2_u32(sbi->blocks_per_blkz);
+	/* JYW: 计算zone的总数量 */
 	FDEV(devi).nr_blkz = SECTOR_TO_BLOCK(nr_sectors) >>
 					sbi->log_blocks_per_blkz;
 	if (nr_sectors & (bdev_zone_sectors(bdev) - 1))
@@ -2780,6 +2784,7 @@ static int init_blkz_info(struct f2fs_sb_info *sbi, int devi)
 		return -ENOMEM;
 
 	/* Get block zones type */
+	/* JYW: 通过blkdev_report_zones获取填充zone的类型 */
 	while (zones && sector < nr_sectors) {
 
 		nr_zones = F2FS_REPORT_NR_ZONES;
@@ -2974,6 +2979,7 @@ static int f2fs_scan_devices(struct f2fs_sb_info *sbi)
 			return -EINVAL;
 		}
 		if (bdev_zoned_model(FDEV(i).bdev) != BLK_ZONED_NONE) {
+			/* JYW: 初始化zone信息 */
 			if (init_blkz_info(sbi, i)) {
 				f2fs_msg(sbi->sb, KERN_ERR,
 					"Failed to initialize F2FS blkzone information");
@@ -3055,6 +3061,7 @@ try_onemore:
 		goto free_sbi;
 	}
 
+	/* JYW: 读取原始超级块信息，里面有zoned feature等信息 */
 	err = read_raw_super_block(sbi, &raw_super, &valid_super_block,
 								&recovery);
 	if (err)
