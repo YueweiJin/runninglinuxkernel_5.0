@@ -746,6 +746,7 @@ static void async_sas_ata_eh(void *data, async_cookie_t cookie)
 
 	sas_ata_printk(KERN_DEBUG, dev, "dev error handler\n");
 	ata_scsi_port_error_handler(ha->core.shost, ap);
+	/* JYW: 二次校验 */
 	sas_put_device(dev);
 }
 

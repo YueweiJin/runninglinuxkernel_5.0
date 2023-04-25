@@ -709,6 +709,7 @@ void ata_scsi_port_error_handler(struct Scsi_Host *host, struct ata_port *ap)
 
 		/* invoke EH, skip if unloading or suspended */
 		if (!(ap->pflags & (ATA_PFLAG_UNLOADING | ATA_PFLAG_SUSPENDED)))
+			/* JYW: ahci_error_handler() */
 			ap->ops->error_handler(ap);
 		else {
 			/* if unloading, commence suicide */
