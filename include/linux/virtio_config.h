@@ -214,7 +214,7 @@ int virtio_find_vqs(struct virtio_device *vdev, unsigned nvqs,
 	return vdev->config->find_vqs(vdev, nvqs, vqs, callbacks, names, NULL, desc);
 }
 
-static inline()
+static inline
 int virtio_find_vqs_ctx(struct virtio_device *vdev, unsigned nvqs,
 			struct virtqueue *vqs[], vq_callback_t *callbacks[],
 			const char * const names[], const bool *ctx,
@@ -445,4 +445,23 @@ static inline u64 virtio_cread64(struct virtio_device *vdev,
 	return virtio64_to_cpu(vdev, (__force __virtio64)ret);
 }
 
-static 
+static inline void virtio_cwrite64(struct virtio_device *vdev,
+                                  unsigned int offset, u64 val)
+{
+       val = (__force u64)cpu_to_virtio64(vdev, val);
+       vdev->config->set(vdev, offset, &val, sizeof(val));
+}
+
+/* Conditional config space accessors. */
+#define virtio_cread_feature(vdev, fbit, structname, member, ptr)      \
+       ({                                                              \
+               int _r = 0;                                             \
+               if (!virtio_has_feature(vdev, fbit))                    \
+                       _r = -ENOENT;                                   \
+               else                                                    \
+                       virtio_cread((vdev), structname, member, ptr);  \
+               _r;                                                     \
+       })
+
+#endif /* _LINUX_VIRTIO_CONFIG_H */
+
