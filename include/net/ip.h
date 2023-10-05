@@ -198,6 +198,7 @@ static inline int ip_queue_xmit(struct sock *sk, struct sk_buff *skb,
 	return __ip_queue_xmit(sk, skb, fl, inet_sk(sk)->tos);
 }
 
+/* JYW: 封装传输层的skb包 */
 static inline struct sk_buff *ip_finish_skb(struct sock *sk, struct flowi4 *fl4)
 {
 	return __ip_make_skb(sk, fl4, &sk->sk_write_queue, &inet_sk(sk)->cork.base);
@@ -343,6 +344,7 @@ void ip_static_sysctl_init(void);
 #define IP4_REPLY_MARK(net, mark) \
 	((net)->ipv4.sysctl_fwmark_reflect ? (mark) : 0)
 
+/* JYW: 判断是否是一个分片ip报文 */
 static inline bool ip_is_fragment(const struct iphdr *iph)
 {
 	return (iph->frag_off & htons(IP_MF | IP_OFFSET)) != 0;

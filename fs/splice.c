@@ -449,6 +449,7 @@ static int pipe_to_sendpage(struct pipe_inode_info *pipe,
 	if (sd->len < sd->total_len && pipe->nrbufs > 1)
 		more |= MSG_SENDPAGE_NOTLAST;
 
+	/* JYW: inet_sendpage */
 	return file->f_op->sendpage(file, buf->page, buf->offset,
 				    sd->len, &pos, more);
 }
@@ -500,6 +501,7 @@ static int splice_from_pipe_feed(struct pipe_inode_info *pipe, struct splice_des
 			return ret;
 		}
 
+		/* JYW: TCP: pipe_to_sendpage */
 		ret = actor(pipe, buf, sd);
 		if (ret <= 0)
 			return ret;
@@ -844,6 +846,7 @@ static long do_splice_from(struct pipe_inode_info *pipe, struct file *out,
 				loff_t *, size_t, unsigned int);
 
 	if (out->f_op->splice_write)
+		/* JYW: generic_splice_sendpage */
 		splice_write = out->f_op->splice_write;
 	else
 		splice_write = default_file_splice_write;

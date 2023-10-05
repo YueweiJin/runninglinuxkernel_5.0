@@ -483,6 +483,7 @@ EXPORT_SYMBOL(dev_remove_pack);
  *	guarantee all CPU's that are in middle of receiving packets
  *	will see the new offload handlers (until the next received packet).
  */
+/* JYW: 注册offload处理函数 */
 void dev_add_offload(struct packet_offload *po)
 {
 	struct packet_offload *elem;
@@ -5162,6 +5163,7 @@ static int generic_xdp_install(struct net_device *dev, struct netdev_bpf *xdp)
 	return ret;
 }
 
+/* JYW: 将skb提交到协议栈 */
 static int netif_receive_skb_internal(struct sk_buff *skb)
 {
 	int ret;
@@ -5364,6 +5366,7 @@ static int napi_gro_complete(struct sk_buff *skb)
 
 	BUILD_BUG_ON(sizeof(struct napi_gro_cb) > sizeof(skb->cb));
 
+	/* JYW: 如果没有被合并过，则gso_size为0，并直接提交给协议栈 */
 	if (NAPI_GRO_CB(skb)->count == 1) {
 		skb_shinfo(skb)->gso_size = 0;
 		goto out;
@@ -5373,7 +5376,7 @@ static int napi_gro_complete(struct sk_buff *skb)
 	list_for_each_entry_rcu(ptype, head, list) {
 		if (ptype->type != type || !ptype->callbacks.gro_complete)
 			continue;
-
+		/* JYW: 调用IP层的gro complete函数 */
 		err = INDIRECT_CALL_INET(ptype->callbacks.gro_complete,
 					 ipv6_gro_complete, inet_gro_complete,
 					 skb, 0);
@@ -5426,26 +5429,30 @@ void napi_gro_flush(struct napi_struct *napi, bool flush_old)
 }
 EXPORT_SYMBOL(napi_gro_flush);
 
+/* JYW: 找到所在的哈希链表头 */
 static struct list_head *gro_list_prepare(struct napi_struct *napi,
 					  struct sk_buff *skb)
 {
 	unsigned int maclen = skb->dev->hard_header_len;
+	/* JYW: 计算skb的哈希值 */
 	u32 hash = skb_get_hash_raw(skb);
 	struct list_head *head;
 	struct sk_buff *p;
 
+	/* JYW: 遍历哈希链表  */
 	head = &napi->gro_hash[hash & (GRO_HASH_BUCKETS - 1)].list;
 	list_for_each_entry(p, head, list) {
 		unsigned long diffs;
 
 		NAPI_GRO_CB(p)->flush = 0;
-
+		/* JYW: 哈希值不相等，则不是相似流 */
 		if (hash != skb_get_hash_raw(p)) {
 			NAPI_GRO_CB(p)->same_flow = 0;
 			continue;
 		}
-
+		/* JYW: dev不相等，则不是相似流 */	
 		diffs = (unsigned long)p->dev ^ (unsigned long)skb->dev;
+		/* JYW: vlan tag不相等，则不是相似流 */	
 		diffs |= skb_vlan_tag_present(p) ^ skb_vlan_tag_present(skb);
 		if (skb_vlan_tag_present(p))
 			diffs |= p->vlan_tci ^ skb->vlan_tci;
@@ -5458,12 +5465,14 @@ static struct list_head *gro_list_prepare(struct napi_struct *napi,
 			diffs = memcmp(skb_mac_header(p),
 				       skb_mac_header(skb),
 				       maclen);
+		/* JYW: 得出最终的结果，是否是相似流 */
 		NAPI_GRO_CB(p)->same_flow = !diffs;
 	}
 
 	return head;
 }
 
+/* JYW: 初始化gro控制块 */
 static void skb_gro_reset_offset(struct sk_buff *skb)
 {
 	const struct skb_shared_info *pinfo = skb_shinfo(skb);
@@ -5497,6 +5506,7 @@ static void gro_pull_from_frag0(struct sk_buff *skb, int grow)
 	pinfo->frags[0].page_offset += grow;
 	skb_frag_size_sub(&pinfo->frags[0], grow);
 
+	/* JYW: 如果frag0是空页了，则剩余页往前搬移 */
 	if (unlikely(!skb_frag_size(&pinfo->frags[0]))) {
 		skb_frag_unref(skb, 0);
 		memmove(pinfo->frags, pinfo->frags + 1,
@@ -5504,6 +5514,7 @@ static void gro_pull_from_frag0(struct sk_buff *skb, int grow)
 	}
 }
 
+/* JYW:  如果超过了最大skb数量，则把链表里最老的那条流的skb先送出去 */
 static void gro_flush_oldest(struct list_head *head)
 {
 	struct sk_buff *oldest;
@@ -5539,19 +5550,24 @@ static enum gro_result dev_gro_receive(struct napi_struct *napi, struct sk_buff 
 	int same_flow;
 	int grow;
 
+	/* JYW: 网卡必须支持GRO特性，否则走normal */
 	if (netif_elide_gro(skb->dev))
 		goto normal;
 
+	/* JYW: 找到所在的哈希链表头 */
 	gro_head = gro_list_prepare(napi, skb);
 
 	rcu_read_lock();
+	/* JYW: 找到注册的offload协议 */
 	list_for_each_entry_rcu(ptype, head, list) {
 		if (ptype->type != type || !ptype->callbacks.gro_receive)
 			continue;
 
 		skb_set_network_header(skb, skb_gro_offset(skb));
 		skb_reset_mac_len(skb);
+		/* JYW: 初始化为0 */
 		NAPI_GRO_CB(skb)->same_flow = 0;
+		/* JYW: 如果当前skb是GSO或者有frag_list，则需要马上提交给协议栈 */
 		NAPI_GRO_CB(skb)->flush = skb_is_gso(skb) || skb_has_frag_list(skb);
 		NAPI_GRO_CB(skb)->free = 0;
 		NAPI_GRO_CB(skb)->encap_mark = 0;
@@ -5575,14 +5591,14 @@ static enum gro_result dev_gro_receive(struct napi_struct *napi, struct sk_buff 
 			NAPI_GRO_CB(skb)->csum_cnt = 0;
 			NAPI_GRO_CB(skb)->csum_valid = 0;
 		}
-
+		/* JYW: 调用IP层的gro_receive()回调函数 */
 		pp = INDIRECT_CALL_INET(ptype->callbacks.gro_receive,
 					ipv6_gro_receive, inet_gro_receive,
 					gro_head, skb);
 		break;
 	}
 	rcu_read_unlock();
-
+	/* JYW: 如果找不到注册的offload协议，则直接提交给协议栈 */
 	if (&ptype->list == head)
 		goto normal;
 
@@ -5593,24 +5609,28 @@ static enum gro_result dev_gro_receive(struct napi_struct *napi, struct sk_buff 
 
 	same_flow = NAPI_GRO_CB(skb)->same_flow;
 	ret = NAPI_GRO_CB(skb)->free ? GRO_MERGED_FREE : GRO_MERGED;
-
+	/* JYW: 非空说明需要flush */
 	if (pp) {
 		skb_list_del_init(pp);
 		napi_gro_complete(pp);
 		napi->gro_hash[hash].count--;
 	}
 
+	/* JYW: 如果是相同流，则skb已经被合并到gro_list */
 	if (same_flow)
 		goto ok;
 
+	/* JYW: 需要直接送到协议栈，不能添加到gro_list */
 	if (NAPI_GRO_CB(skb)->flush)
 		goto normal;
 
+	/* JYW:  如果超过了8个包，则把链表里最老的那条流的skb先送出去 */
 	if (unlikely(napi->gro_hash[hash].count >= MAX_GRO_SKBS)) {
 		gro_flush_oldest(gro_head);
 	} else {
 		napi->gro_hash[hash].count++;
 	}
+	/* JYW: 没有匹配到缓存，说明当前skb是这条流的首包，因此将其挂到gro_list */
 	NAPI_GRO_CB(skb)->count = 1;
 	NAPI_GRO_CB(skb)->age = jiffies;
 	NAPI_GRO_CB(skb)->last = skb;
@@ -5619,8 +5639,10 @@ static enum gro_result dev_gro_receive(struct napi_struct *napi, struct sk_buff 
 	ret = GRO_HELD;
 
 pull:
+	/* JYW: 这里gro offset到底表示什么 ？？ */
 	grow = skb_gro_offset(skb) - skb_headlen(skb);
 	if (grow > 0)
+		/* JYW: 将需要的数据拷贝到线性区 */
 		gro_pull_from_frag0(skb, grow);
 ok:
 	if (napi->gro_hash[hash].count) {
@@ -5672,10 +5694,12 @@ static void napi_skb_free_stolen_head(struct sk_buff *skb)
 	kmem_cache_free(skbuff_head_cache, skb);
 }
 
+/* JYW: 判断是否要将数据包feed到协议栈 */
 static gro_result_t napi_skb_finish(gro_result_t ret, struct sk_buff *skb)
 {
 	switch (ret) {
 	case GRO_NORMAL:
+		/* JYW: 将skb提交到协议栈 */
 		if (netif_receive_skb_internal(skb))
 			ret = GRO_DROP;
 		break;
@@ -5684,6 +5708,7 @@ static gro_result_t napi_skb_finish(gro_result_t ret, struct sk_buff *skb)
 		kfree_skb(skb);
 		break;
 
+	/* JYW: skb可以被合并，因为gro已经将skb合并并保存起来 */
 	case GRO_MERGED_FREE:
 		if (NAPI_GRO_CB(skb)->free == NAPI_GRO_FREE_STOLEN_HEAD)
 			napi_skb_free_stolen_head(skb);
@@ -5691,6 +5716,7 @@ static gro_result_t napi_skb_finish(gro_result_t ret, struct sk_buff *skb)
 			__kfree_skb(skb);
 		break;
 
+	/* JYW: skb并没有合并，但已保存 */
 	case GRO_HELD:
 	case GRO_MERGED:
 	case GRO_CONSUMED:
@@ -5700,6 +5726,7 @@ static gro_result_t napi_skb_finish(gro_result_t ret, struct sk_buff *skb)
 	return ret;
 }
 
+/* JYW: GRO接收处理API */
 gro_result_t napi_gro_receive(struct napi_struct *napi, struct sk_buff *skb)
 {
 	gro_result_t ret;
@@ -5707,6 +5734,7 @@ gro_result_t napi_gro_receive(struct napi_struct *napi, struct sk_buff *skb)
 	skb_mark_napi_id(skb, napi);
 	trace_napi_gro_receive_entry(skb);
 
+	/* JYW: 初始化gro控制块page0偏移 */
 	skb_gro_reset_offset(skb);
 
 	ret = napi_skb_finish(dev_gro_receive(napi, skb), skb);

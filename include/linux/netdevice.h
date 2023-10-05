@@ -333,6 +333,7 @@ struct napi_struct {
 	int			poll_owner;
 #endif
 	struct net_device	*dev;
+	/* JYW: 存放积攒的数据包 */
 	struct gro_list		gro_hash[GRO_HASH_BUCKETS];
 	struct sk_buff		*skb;
 	struct hrtimer		timer;
@@ -4490,6 +4491,7 @@ static inline bool net_gso_ok(netdev_features_t features, int gso_type)
 	return (features & feature) == feature;
 }
 
+/* JYW: 是否能够进行GSO */
 static inline bool skb_gso_ok(struct sk_buff *skb, netdev_features_t features)
 {
 	return net_gso_ok(features, skb_shinfo(skb)->gso_type) &&

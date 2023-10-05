@@ -439,8 +439,10 @@ static inline void dst_set_expires(struct dst_entry *dst, int timeout)
 }
 
 /* Output packet to network from transport.  */
+/* JYW: 发送到IP层 */
 static int dst_output(struct net *net, struct sock *sk, struct sk_buff *skb)
 {
+	/* JYW: 如果是单播，则是ip_output */
 	return skb_dst(skb)->output(net, sk, skb);
 }
 

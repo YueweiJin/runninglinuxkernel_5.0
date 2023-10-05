@@ -115,6 +115,7 @@ int __ip_local_out(struct net *net, struct sock *sk, struct sk_buff *skb)
 		       dst_output);
 }
 
+/* JYW: 发送到IP层 */
 int ip_local_out(struct net *net, struct sock *sk, struct sk_buff *skb)
 {
 	int err;
@@ -239,6 +240,7 @@ static int ip_finish_output2(struct net *net, struct sock *sk, struct sk_buff *s
 	return -EINVAL;
 }
 
+/* JYW: 如果支持GSO，则进行GSO相关处理 */
 static int ip_finish_output_gso(struct net *net, struct sock *sk,
 				struct sk_buff *skb, unsigned int mtu)
 {
@@ -308,12 +310,15 @@ static int ip_finish_output(struct net *net, struct sock *sk, struct sk_buff *sk
 	}
 #endif
 	mtu = ip_skb_dst_mtu(sk, skb);
+	/* JYW: 如果支持GSO，则进行GSO相关处理 */
 	if (skb_is_gso(skb))
 		return ip_finish_output_gso(net, sk, skb, mtu);
 
+	/* JYW: 如果不支持GSO，且长度大于mtu，则需要做分片处理 */
 	if (skb->len > mtu || (IPCB(skb)->flags & IPSKB_FRAG_PMTU))
 		return ip_fragment(net, sk, skb, mtu, ip_finish_output2);
 
+	/* JYW: 不需要分片，则直接发送即可 */
 	return ip_finish_output2(net, sk, skb);
 }
 
@@ -546,9 +551,11 @@ static int ip_fragment(struct net *net, struct sock *sk, struct sk_buff *skb,
 {
 	struct iphdr *iph = ip_hdr(skb);
 
+	/* JYW: 如果没有分片标记，则进行分片处理 */
 	if ((iph->frag_off & htons(IP_DF)) == 0)
 		return ip_do_fragment(net, sk, skb, output);
 
+	/* JYW: 不允许本地分片 || 分片最大长度超过MTU，则报告ICMP，然后释放skb */
 	if (unlikely(!skb->ignore_df ||
 		     (IPCB(skb)->frag_max_size &&
 		      IPCB(skb)->frag_max_size > mtu))) {
@@ -589,9 +596,9 @@ int ip_do_fragment(struct net *net, struct sock *sk, struct sk_buff *skb,
 	/*
 	 *	Point into the IP datagram header.
 	 */
-
+	/* JYW: 指向ip头 */
 	iph = ip_hdr(skb);
-
+	/* JYW: 获取MTU */
 	mtu = ip_skb_dst_mtu(sk, skb);
 	if (IPCB(skb)->frag_max_size && IPCB(skb)->frag_max_size < mtu)
 		mtu = IPCB(skb)->frag_max_size;
@@ -612,8 +619,10 @@ int ip_do_fragment(struct net *net, struct sock *sk, struct sk_buff *skb,
 	 * LATER: this step can be merged to real generation of fragments,
 	 * we can switch to copy when see the first bad fragment.
 	 */
+	/* JYW: 已有frag_list片段 */
 	if (skb_has_frag_list(skb)) {
 		struct sk_buff *frag, *frag2;
+		/* JYW: 获取线性区和非线性区frags的总长度 */
 		unsigned int first_len = skb_pagelen(skb);
 
 		if (first_len - hlen > mtu ||
@@ -1383,15 +1392,18 @@ struct sk_buff *__ip_make_skb(struct sock *sk,
 	skb = __skb_dequeue(queue);
 	if (!skb)
 		goto out;
+	/* JYW: 获得frag_list列表 */
 	tail_skb = &(skb_shinfo(skb)->frag_list);
 
 	/* move skb->data to ip header from ext header */
 	if (skb->data < skb_network_header(skb))
 		__skb_pull(skb, skb_network_offset(skb));
+	/* JYW: 先用next串联起来 */
 	while ((tmp_skb = __skb_dequeue(queue)) != NULL) {
 		__skb_pull(tmp_skb, skb_network_header_len(skb));
 		*tail_skb = tmp_skb;
 		tail_skb = &(tmp_skb->next);
+		/* JYW: 第一个skb的长度是整个链所有skb长度的总和 */
 		skb->len += tmp_skb->len;
 		skb->data_len += tmp_skb->len;
 		skb->truesize += tmp_skb->truesize;
@@ -1424,6 +1436,7 @@ struct sk_buff *__ip_make_skb(struct sock *sk,
 	else
 		ttl = ip_select_ttl(inet, &rt->dst);
 
+	/* JYW: 得到IP报文头的地址 */
 	iph = ip_hdr(skb);
 	iph->version = 4;
 	iph->ihl = 5;
@@ -1458,10 +1471,12 @@ out:
 	return skb;
 }
 
+/* JYW: 发送到IP层 */
 int ip_send_skb(struct net *net, struct sk_buff *skb)
 {
 	int err;
 
+	/* JYW: 发送到IP层 */
 	err = ip_local_out(net, skb->sk, skb);
 	if (err) {
 		if (err > 0)
@@ -1477,11 +1492,13 @@ int ip_push_pending_frames(struct sock *sk, struct flowi4 *fl4)
 {
 	struct sk_buff *skb;
 
+	/* JYW: 封装传输层的skb包 */
 	skb = ip_finish_skb(sk, fl4);
 	if (!skb)
 		return 0;
 
 	/* Netfilter gets whole the not fragmented skb. */
+	/* JYW: 发送到IP层 */
 	return ip_send_skb(sock_net(sk), skb);
 }
 

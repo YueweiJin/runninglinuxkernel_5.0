@@ -275,12 +275,14 @@ EXPORT_SYMBOL(__alloc_skb);
  *  before giving packet to stack.
  *  RX rings only contains data buffers, not full skbs.
  */
+/* JYW: 构造一个skb */
 struct sk_buff *__build_skb(void *data, unsigned int frag_size)
 {
 	struct skb_shared_info *shinfo;
 	struct sk_buff *skb;
 	unsigned int size = frag_size ? : ksize(data);
 
+	/* JYW: 先分配一个skb结构体并进行初始化 */
 	skb = kmem_cache_alloc(skbuff_head_cache, GFP_ATOMIC);
 	if (!skb)
 		return NULL;
@@ -310,8 +312,10 @@ struct sk_buff *__build_skb(void *data, unsigned int frag_size)
  * This means that if @frag_size is not zero, then @data must be backed
  * by a page fragment, not kmalloc() or vmalloc()
  */
+/* JYW: 构造一个skb */
 struct sk_buff *build_skb(void *data, unsigned int frag_size)
 {
+	/* JYW: 构造一个skb */
 	struct sk_buff *skb = __build_skb(data, frag_size);
 
 	if (skb && frag_size) {
@@ -506,9 +510,11 @@ skb_fail:
 }
 EXPORT_SYMBOL(__napi_alloc_skb);
 
+/* JYW: 填充skb frag描述信息 */
 void skb_add_rx_frag(struct sk_buff *skb, int i, struct page *page, int off,
 		     int size, unsigned int truesize)
 {
+	/* JYW: 填充skb frag描述信息 */
 	skb_fill_page_desc(skb, i, page, off, size);
 	skb->len += size;
 	skb->data_len += size;
@@ -1888,7 +1894,13 @@ EXPORT_SYMBOL(pskb_trim_rcsum_slow);
  *
  * It is pretty complicated. Luckily, it is called only in exceptional cases.
  */
-/* JYW: 将非线性区数据搬移到线性区 */
+/* JYW: 将非线性区数据搬移到线性区
+ *  step1: 扩展非线性区空间
+ *  step2：拷贝非线性区frags空间数据到线性区
+ *  step3：拷贝非线性区frag_list空间到线性区
+ *  step4：清理非线性区frag_list元数据
+ *  step5：清理非线性区frags元数据
+ */
 void *__pskb_pull_tail(struct sk_buff *skb, int delta)
 {
 	/* If skb has not enough free space at tail, get new one
@@ -1905,6 +1917,11 @@ void *__pskb_pull_tail(struct sk_buff *skb, int delta)
 			return NULL;
 	}
 
+	/* JYW: 从skb的线性数据区以及可能从非线性数据区，甚至可能从skb的frag_list链中拷贝
+     * 总长度为delta的数据到skb_tail_pointer(skb)。
+     * 自此之后，所需要的数据都拷贝到了skb的线性数据缓冲区，所拷贝的数据在其他地方也存在，
+     * 接下来要清理重复的数据也就顺理成章了。
+     */
 	BUG_ON(skb_copy_bits(skb, skb_headlen(skb),
 			     skb_tail_pointer(skb), delta));
 
@@ -1915,6 +1932,7 @@ void *__pskb_pull_tail(struct sk_buff *skb, int delta)
 		goto pull_pages;
 
 	/* Estimate size of pulled pages. */
+	/* JYW: 统计从frags拷贝了多少数据，剩下的eat就是frag_list中的数据 */
 	eat = delta;
 	for (i = 0; i < skb_shinfo(skb)->nr_frags; i++) {
 		int size = skb_frag_size(&skb_shinfo(skb)->frags[i]);
@@ -1931,6 +1949,7 @@ void *__pskb_pull_tail(struct sk_buff *skb, int delta)
 	 * further bloating skb head and crucify ourselves here instead.
 	 * Pure masohism, indeed. 8)8)
 	 */
+	/* JYW: 剩下的eat就是frag_list中拷贝的数据 */
 	if (eat) {
 		struct sk_buff *list = skb_shinfo(skb)->frag_list;
 		struct sk_buff *clone = NULL;
@@ -2002,7 +2021,9 @@ pull_pages:
 	skb_shinfo(skb)->nr_frags = k;
 
 end:
+	/* JYW: 更新tail指针 */
 	skb->tail     += delta;
+	/* JYW: 更新非线性区数据大小 */
 	skb->data_len -= delta;
 
 	if (!skb->data_len)
@@ -3795,11 +3816,15 @@ err:
 }
 EXPORT_SYMBOL_GPL(skb_segment);
 
+/* JYW: 走到这里说明skb和head的skb是同一条流, 则进行合并接收 */
 int skb_gro_receive(struct sk_buff *p, struct sk_buff *skb)
 {
 	struct skb_shared_info *pinfo, *skbinfo = skb_shinfo(skb);
+	/* JYW: 此时offset指向skb->data偏向ip+tcp头长之后的位置 */
 	unsigned int offset = skb_gro_offset(skb);
+	/* JYW: 线性区长度 */
 	unsigned int headlen = skb_headlen(skb);
+	/* JYW: 线性区和非线性区总长度 */
 	unsigned int len = skb_gro_len(skb);
 	unsigned int delta_truesize;
 	struct sk_buff *lp;
@@ -3807,22 +3832,26 @@ int skb_gro_receive(struct sk_buff *p, struct sk_buff *skb)
 	if (unlikely(p->len + len >= 65536))
 		return -E2BIG;
 
+	/* JYW: 找到GRO链表上相似流skb关联的last skb */
 	lp = NAPI_GRO_CB(p)->last;
 	pinfo = skb_shinfo(lp);
-
+	/* JYW: 线性区数据长度比tcp和ip头都要小，说明线性区没有data数据，则只需要合并非线性区数据即可  */
 	if (headlen <= offset) {
 		skb_frag_t *frag;
 		skb_frag_t *frag2;
+		/* JYW: 获取待合并的skb的片段数量 */
 		int i = skbinfo->nr_frags;
+		/* JYW: 计算合并后总片段数量 */
 		int nr_frags = pinfo->nr_frags + i;
-
+		/* JYW: 超过了总大小，需要做合并处理 */
 		if (nr_frags > MAX_SKB_FRAGS)
 			goto merge;
 
 		offset -= headlen;
+		/* JYW: 更新合并后的片段数量 */
 		pinfo->nr_frags = nr_frags;
 		skbinfo->nr_frags = 0;
-
+		/* JYW: 完成frag的拷贝 */
 		frag = pinfo->frags + nr_frags;
 		frag2 = skbinfo->frags + i;
 		do {
@@ -3839,16 +3868,18 @@ int skb_gro_receive(struct sk_buff *p, struct sk_buff *skb)
 		skb->truesize -= skb->data_len;
 		skb->len -= skb->data_len;
 		skb->data_len = 0;
-
+		/* JYW: 标记已经合并完成，可以被释放 */
 		NAPI_GRO_CB(skb)->free = NAPI_GRO_FREE;
 		goto done;
+	/* JYW: 先拷贝非线性区数据，再将线性区数据拷贝到frag0 */
 	} else if (skb->head_frag) {
 		int nr_frags = pinfo->nr_frags;
 		skb_frag_t *frag = pinfo->frags + nr_frags;
+		/* JYW: 拿到线性区指针 */
 		struct page *page = virt_to_head_page(skb->head);
 		unsigned int first_size = headlen - offset;
 		unsigned int first_offset;
-
+		/* JYW: 超过了最大分片个数，则需要合并 */
 		if (nr_frags + 1 + skbinfo->nr_frags > MAX_SKB_FRAGS)
 			goto merge;
 
@@ -3857,20 +3888,22 @@ int skb_gro_receive(struct sk_buff *p, struct sk_buff *skb)
 			       offset;
 
 		pinfo->nr_frags = nr_frags + 1 + skbinfo->nr_frags;
-
+		/* JYW: frag0指向线性区 */
 		frag->page.p	  = page;
 		frag->page_offset = first_offset;
 		skb_frag_size_set(frag, first_size);
-
+		/* JYW: 拷贝非线性区数据 */
 		memcpy(frag + 1, skbinfo->frags, sizeof(*frag) * skbinfo->nr_frags);
 		/* We dont need to clear skbinfo->nr_frags here */
 
 		delta_truesize = skb->truesize - SKB_DATA_ALIGN(sizeof(struct sk_buff));
+		/* JYW: 表示当前是借的，还不能立即释放 */
 		NAPI_GRO_CB(skb)->free = NAPI_GRO_FREE_STOLEN_HEAD;
 		goto done;
 	}
 
 merge:
+	/* JYW: gro->last的空间已满，frags个数最多16个，将待合并的skb挂到gro_skb->last里 */
 	delta_truesize = skb->truesize;
 	if (offset > headlen) {
 		unsigned int eat = offset - headlen;
@@ -3883,16 +3916,20 @@ merge:
 	}
 
 	__skb_pull(skb, offset);
-
+	/* JYW: 如果关联的last是自己，则将skb挂到frag_list下 */
 	if (NAPI_GRO_CB(p)->last == p)
 		skb_shinfo(p)->frag_list = skb;
+	/* JYW: 否则就是挂到next下 */
 	else
 		NAPI_GRO_CB(p)->last->next = skb;
+	/* JYW: 再将skb挂到last中 */
 	NAPI_GRO_CB(p)->last = skb;
 	__skb_header_release(skb);
 	lp = p;
 
+/* JYW: 合并完成标记 */
 done:
+	/* JYW: 更新合并统计计数 */
 	NAPI_GRO_CB(p)->count++;
 	p->data_len += len;
 	p->truesize += delta_truesize;
@@ -3902,6 +3939,7 @@ done:
 		lp->truesize += delta_truesize;
 		lp->len += len;
 	}
+	/* JYW: 标记当前same_flow为1 */
 	NAPI_GRO_CB(skb)->same_flow = 1;
 	return 0;
 }

@@ -144,6 +144,7 @@ static inline void pipe_buf_release(struct pipe_inode_info *pipe,
 static inline int pipe_buf_confirm(struct pipe_inode_info *pipe,
 				   struct pipe_buffer *buf)
 {
+	/* JYW: generic_pipe_buf_confirm */
 	return buf->ops->confirm(pipe, buf);
 }
 
