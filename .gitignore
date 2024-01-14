@@ -58,4 +58,10 @@ net/netfilter/xt_HL.c
 net/netfilter/xt_RATEEST.c
 net/netfilter/xt_TCPMSS.c
 tools/memory-model/litmus-tests/Z6.0+pooncelock+poonceLock+pombonce.litmus
+.test.txt.swp
+FileList.txt
+crypto/.proc.c.swo
+cscope.*
+drivers/virtio/.virtio_pci_legacy.c.swp
+tags
 
